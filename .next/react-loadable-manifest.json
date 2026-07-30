@@ -1,0 +1,44 @@
+{
+  "features\\settings\\SettingsPage.tsx -> @/services/drive/folders": {
+    "id": 2090,
+    "files": [
+      "static/chunks/90.b78a35ea142e43b8.js"
+    ]
+  },
+  "features\\stories\\CreateStoryModal.tsx -> @/services/stories": {
+    "id": 6172,
+    "files": []
+  },
+  "hooks\\useAuth.ts -> @/lib/auth/storage": {
+    "id": 9175,
+    "files": []
+  },
+  "hooks\\useFolders.ts -> @/services/drive/folders": {
+    "id": 2090,
+    "files": []
+  },
+  "node_modules\\next\\dist\\client\\index.js -> ../pages/_app": {
+    "id": 5139,
+    "files": [
+      "static/chunks/139.7a5a8e93a21948c1.js"
+    ]
+  },
+  "node_modules\\next\\dist\\client\\index.js -> ../pages/_error": {
+    "id": 1646,
+    "files": [
+      "static/chunks/646.f342b7cffc01feb0.js"
+    ]
+  },
+  "services\\drive\\files.ts -> @/lib/auth/storage": {
+    "id": 9175,
+    "files": []
+  },
+  "services\\drive\\folders.ts -> @/lib/auth/storage": {
+    "id": 9175,
+    "files": []
+  },
+  "services\\stories.ts -> ./drive/folders": {
+    "id": 2090,
+    "files": []
+  }
+}

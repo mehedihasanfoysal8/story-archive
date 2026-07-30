@@ -1,0 +1,261 @@
+"use client";
+
+import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useStories, useDeleteStory, useDuplicateStory, useCreateStory } from "@/hooks/useStories";
+import { useSearch } from "@/hooks/useSearch";
+import { StoryCard } from "./StoryCard";
+import { StoryTable } from "./StoryTable";
+import { StoryPreview } from "./StoryPreview";
+import { CreateStoryModal } from "./CreateStoryModal";
+import { ImportExportMenu } from "./ImportExportMenu";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { PageLayout } from "@/components/layout/PageLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Grid, List, Search, Plus, BookOpen, X, RefreshCw } from "lucide-react";
+import type { StoryWithMeta } from "@/types/story";
+import { ROUTES } from "@/config/app";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+import { generateStoryId, generateNumericStoryId } from "@/utils/helpers";
+
+export function StoryManager() {
+  const { rootFolderId } = useAuth();
+  const router = useRouter();
+
+  // Queries
+  const { data: stories = [], isLoading, refetch } = useStories(rootFolderId);
+  const deleteStoryMutation = useDeleteStory();
+  const duplicateStoryMutation = useDuplicateStory();
+  const createStoryMutation = useCreateStory();
+
+  // State
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [previewStory, setPreviewStory] = useState<StoryWithMeta | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const [createOpen, setCreateOpen] = useState(false);
+
+  // Search & Filter hook
+  const {
+    query,
+    setQuery,
+    filters,
+    setFilters,
+    results,
+    filterOptions,
+    clearFilters,
+    hasActiveFilters,
+    totalCount,
+    resultCount,
+  } = useSearch(stories);
+
+  const handleDuplicate = async (story: StoryWithMeta) => {
+    const newId = `${story.story_id}_copy`;
+    const newFolderName = `${story.driveFolderId}_copy`;
+
+    await duplicateStoryMutation.mutateAsync({
+      sourceFileId: story.driveFileId,
+      sourceFolderId: story.driveFolderId,
+      newStoryId: newId,
+      newFolderName: newFolderName,
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteFolderId) return;
+    await deleteStoryMutation.mutateAsync(deleteFolderId);
+    setDeleteOpen(false);
+  };
+
+  const handleImportJSON = async (importedStory: any) => {
+    if (!rootFolderId) return;
+
+    // Check for duplicate story ID
+    const isDuplicate = stories.some((s) => s.story_id === importedStory.story_id);
+    if (isDuplicate) {
+      toast.error("Duplicate story_id found in Drive archive.");
+      return;
+    }
+
+    await createStoryMutation.mutateAsync({
+      rootFolderId,
+      country: importedStory.origin_country || "Global",
+      collection: importedStory.source_tradition || "Folk Tales",
+      storyFolderName: importedStory.story_id || generateNumericStoryId(),
+      story: importedStory,
+    });
+  };
+
+  return (
+    <PageLayout title="Story Manager">
+      <div className="p-6 space-y-6">
+        {/* Actions bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className={viewMode === "grid" ? "bg-accent" : ""}
+              onClick={() => setViewMode("grid")}
+            >
+              <Grid className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className={viewMode === "list" ? "bg-accent" : ""}
+              onClick={() => setViewMode("list")}
+            >
+              <List className="w-4 h-4" />
+            </Button>
+            <span className="text-xs text-muted-foreground ml-2">
+              Showing {resultCount} of {totalCount} stories
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 self-end">
+            <ImportExportMenu onImport={handleImportJSON} />
+            <Button onClick={() => setCreateOpen(true)} className="rounded-xl shadow-md">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Story
+            </Button>
+          </div>
+        </div>
+
+        {/* Filter controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-muted/30 p-4 rounded-2xl border">
+          <div className="sm:col-span-2 relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-3 text-muted-foreground" />
+            <Input
+              placeholder="Search by title, writer, country, theme, ATU..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="pl-10 rounded-xl"
+            />
+          </div>
+
+          <div>
+            <Select
+              value={filters.country || "ALL"}
+              onValueChange={(val) => setFilters((f) => ({ ...f, country: val === "ALL" ? undefined : val }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="All Countries" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Countries</SelectItem>
+                {filterOptions.countries.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Select
+              value={filters.ageGroup || "ALL"}
+              onValueChange={(val) => setFilters((f) => ({ ...f, ageGroup: val === "ALL" ? undefined : val }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="All Age Groups" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Age Groups</SelectItem>
+                {filterOptions.ageGroups.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {a}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Stories Listing */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-60 rounded-2xl bg-muted animate-pulse border" />
+            ))}
+          </div>
+        ) : results.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-2xl text-center min-h-[300px]">
+            <BookOpen className="w-12 h-12 text-muted-foreground/60 mb-3" />
+            <p className="font-semibold text-base">No stories match filters</p>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">
+              Try adjusting your query strings or filters.
+            </p>
+            {hasActiveFilters && (
+              <Button variant="secondary" onClick={clearFilters} className="rounded-xl">
+                Reset Search
+              </Button>
+            )}
+          </div>
+        ) : viewMode === "grid" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {results.map((story) => (
+              <StoryCard
+                key={story.story_id}
+                story={story}
+                onDelete={(folderId) => {
+                  setDeleteFolderId(folderId);
+                  setDeleteOpen(true);
+                }}
+                onDuplicate={handleDuplicate}
+                onPreview={(s) => {
+                  setPreviewStory(s);
+                  setPreviewOpen(true);
+                }}
+              />
+            ))}
+          </div>
+        ) : (
+          <StoryTable
+            stories={results}
+            onDelete={(folderId) => {
+              setDeleteFolderId(folderId);
+              setDeleteOpen(true);
+            }}
+            onDuplicate={handleDuplicate}
+            onPreview={(s) => {
+              setPreviewStory(s);
+              setPreviewOpen(true);
+            }}
+          />
+        )}
+      </div>
+
+      {/* Preview Modal */}
+      <StoryPreview
+        story={previewStory}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+      />
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete Story Archive"
+        description="Are you sure you want to delete this story? This will permanently delete the entire story folder, including the story.json file and all associated image assets from your Google Drive."
+        confirmLabel="Delete Permanently"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+        isLoading={deleteStoryMutation.isPending}
+      />
+
+      {/* Full-Featured Create Story Modal */}
+      <CreateStoryModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+      />
+    </PageLayout>
+  );
+}
