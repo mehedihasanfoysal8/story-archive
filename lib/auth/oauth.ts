@@ -9,7 +9,7 @@ import type { OAuthToken } from "@/types/auth";
 export async function initiateOAuthFlow(customClientId?: string): Promise<void> {
   const activeClientId = customClientId || GOOGLE_CONFIG.clientId;
   if (!activeClientId) {
-    throw new Error("CLIENT_ID_REQUIRED");
+    throw new Error("CLIENT_ID_REQUIREDISS");
   }
 
   const state = generateState();
