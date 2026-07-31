@@ -10,6 +10,12 @@ export interface DriveFile {
   webContentLink?: string;
   thumbnailLink?: string;
   iconLink?: string;
+  lastModifyingUser?: {
+    displayName?: string;
+    emailAddress?: string;
+    photoLink?: string;
+    me?: boolean;
+  };
   starred?: boolean;
   trashed?: boolean;
   description?: string;
@@ -18,6 +24,11 @@ export interface DriveFile {
     height: number;
     rotation?: number;
   };
+}
+
+export interface DriveFileWithPath extends DriveFile {
+  folderPath: string[];
+  displayPath: string;
 }
 
 export interface DriveFolder extends DriveFile {

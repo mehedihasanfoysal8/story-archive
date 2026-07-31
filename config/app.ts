@@ -18,8 +18,8 @@ export const APP_CONFIG = {
 } as const;
 
 export const DRIVE_FIELDS = {
-  file: "id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,webContentLink,thumbnailLink,iconLink",
-  fileList: "nextPageToken,files(id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,webContentLink,thumbnailLink,iconLink)",
+  file: "id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,webContentLink,thumbnailLink,iconLink,lastModifyingUser(displayName,emailAddress,photoLink,me)",
+  fileList: "nextPageToken,files(id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,webContentLink,thumbnailLink,iconLink,lastModifyingUser(displayName,emailAddress,photoLink,me))",
   about: "storageQuota,user",
 } as const;
 
@@ -42,6 +42,7 @@ export const ROUTES = {
   storyPreview: (id: string) => `/stories/${id}/preview`,
   folders: "/folders",
   images: "/images",
+  driveOverview: "/drive-overview",
   search: "/search",
   settings: "/settings",
   authCallback: "/auth/callback",

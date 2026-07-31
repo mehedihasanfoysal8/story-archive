@@ -28,6 +28,7 @@ import type { BreadcrumbItem } from "@/types/drive";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/config/app";
+import type { DriveFile } from "@/types/drive";
 
 export function FolderManager() {
   const { rootFolderId } = useAuth();
@@ -99,15 +100,16 @@ export function FolderManager() {
 
   // --- Handlers ---
 
-  const handleOpen = (id: string, name: string, mimeType: string) => {
-    if (mimeType === "application/vnd.google-apps.folder") {
-      setCurrentId(id);
+  const handleOpen = (item: DriveFile) => {
+    if (item.mimeType === "application/vnd.google-apps.folder") {
+      setCurrentId(item.id);
     } else {
-      const file = contents?.files.find((f: any) => f.id === id);
-      if (file?.name.endsWith(".json")) {
-        router.push(ROUTES.story(id));
+      if (item.name.endsWith(".json")) {
+        router.push(ROUTES.story(item.id));
       } else {
-        toast.success(`Opened "${name}". Use right-click or menu to rename/delete.`);
+        const driveUrl =
+          item.webViewLink || `https://drive.google.com/open?id=${item.id}`;
+        window.open(driveUrl, "_blank", "noopener,noreferrer");
       }
     }
   };

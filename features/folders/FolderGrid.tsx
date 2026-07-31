@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 
 interface FolderGridProps {
   items: DriveFile[];
-  onOpen: (id: string, name: string, mimeType: string) => void;
+  onOpen: (item: DriveFile) => void;
   onRename: (id: string, name: string, isFolder: boolean) => void;
   onMove: (id: string, currentParentId: string) => void;
   onDelete: (id: string, isFolder: boolean, name: string) => void;
@@ -51,14 +51,14 @@ export function FolderGrid({
           <FolderContextMenu
             key={item.id}
             isFolder={isFolder}
-            onOpen={() => onOpen(item.id, item.name, item.mimeType)}
+            onOpen={() => onOpen(item)}
             onRename={() => onRename(item.id, item.name, isFolder)}
             onMove={isFolder ? () => onMove(item.id, currentParentId) : undefined}
             onDelete={() => onDelete(item.id, isFolder, item.name)}
           >
             <div
               className="flex items-center gap-3 p-4 rounded-xl border bg-card hover:bg-accent/40 select-none cursor-pointer group transition-all relative"
-              onClick={() => onOpen(item.id, item.name, item.mimeType)}
+              onClick={() => onOpen(item)}
             >
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform ${isFolder
@@ -100,7 +100,7 @@ export function FolderGrid({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44 rounded-xl">
-                    <DropdownMenuItem onClick={() => onOpen(item.id, item.name, item.mimeType)}>
+                    <DropdownMenuItem onClick={() => onOpen(item)}>
                       {isFolder ? <Folder className="w-4 h-4 mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
                       Open {isFolder ? "Folder" : "File"}
                     </DropdownMenuItem>

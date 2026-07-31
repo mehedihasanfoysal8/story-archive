@@ -1,52 +1,49 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { useStories } from "@/hooks/useStories";
+import { useQuery } from "@tanstack/react-query";
+import { getDashboardSummary } from "@/services/dashboard";
 import { StatsCard } from "./StatsCard";
-import { RecentStories } from "./RecentStories";
+import { RecentDriveUpdates } from "./RecentDriveUpdates";
+import { EmptyDocsTable } from "./EmptyDocsTable";
 import { StorageWidget } from "./StorageWidget";
-import { BookOpen, Globe, FolderTree, Image as ImageIcon, Sparkles, FolderUp, Plus } from "lucide-react";
+import {
+  BookOpen,
+  FileWarning,
+  Image as ImageIcon,
+  Sparkles,
+  FolderUp,
+  Plus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
-import { useMemo } from "react";
 import { ROUTES } from "@/config/app";
 
 export function DashboardPage() {
   const { rootFolderId } = useAuth();
-  const { data: stories, isLoading } = useStories(rootFolderId);
+  const { data: summary, isLoading } = useQuery({
+    queryKey: ["dashboard", "summary", rootFolderId],
+    queryFn: () => getDashboardSummary(rootFolderId!),
+    enabled: !!rootFolderId,
+    staleTime: 1000 * 60 * 5,
+  });
   const router = useRouter();
-
-  const stats = useMemo(() => {
-    if (!stories) return { storiesCount: 0, countriesCount: 0, collectionsCount: 0, imagesCount: 0 };
-
-    const countries = new Set<string>();
-    const collections = new Set<string>();
-    let totalImages = 0;
-
-    stories.forEach((story) => {
-      if (story.origin_country) countries.add(story.origin_country);
-      // Derive collection from folder path or standard fields
-      if (story.source_tradition) collections.add(story.source_tradition);
-      totalImages += story.image_ids?.length || 0;
-    });
-
-    return {
-      storiesCount: stories.length,
-      countriesCount: countries.size,
-      collectionsCount: collections.size,
-      imagesCount: totalImages,
-    };
-  }, [stories]);
+  const goToDriveOverview = (tab: "recent" | "empty" | "non-empty") => {
+    router.push(`${ROUTES.driveOverview}?tab=${tab}`);
+  };
 
   if (isLoading) {
     return (
       <PageLayout title="Dashboard">
         <div className="p-6 space-y-6">
           <div className="h-8 w-48 bg-muted animate-pulse rounded" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-28 bg-muted animate-pulse rounded-2xl" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-28 bg-muted animate-pulse rounded-2xl"
+              />
             ))}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -69,7 +66,8 @@ export function DashboardPage() {
               <Sparkles className="w-5 h-5 text-primary animate-pulse" />
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              You are connected directly to your Google Drive storage. All changes sync in real-time.
+              You are connected directly to your Google Drive storage. All
+              changes sync in real-time.
             </p>
           </div>
           <div className="flex gap-2">
@@ -95,42 +93,65 @@ export function DashboardPage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatsCard
-            title="Total Stories"
-            value={stats.storiesCount}
-            description="Active story json files"
+            title="Total Documents"
+            value={
+              (summary?.nonEmptyDocs.length || 0) +
+              (summary?.emptyDocs.length || 0)
+            }
+            description="All Google Docs files"
             icon={<BookOpen className="w-5 h-5" />}
+            // onClick={() => goToDriveOverview("non-empty")}
           />
+
           <StatsCard
-            title="Countries"
-            value={stats.countriesCount}
-            description="Unique origin countries"
-            icon={<Globe className="w-5 h-5" />}
+            title="Story Documents"
+            value={summary?.totalStories || 0}
+            description="Google Docs containing stories"
+            icon={<BookOpen className="w-5 h-5" />}
+            onClick={() => goToDriveOverview("non-empty")}
           />
+
           <StatsCard
-            title="Collections"
-            value={stats.collectionsCount}
-            description="Unique traditions/genres"
-            icon={<FolderTree className="w-5 h-5" />}
+            title="Empty Documents"
+            value={summary?.emptyDocs.length || 0}
+            description="Google Docs without content"
+            icon={<FileWarning className="w-5 h-5" />}
+            onClick={() => goToDriveOverview("empty")}
           />
           <StatsCard
             title="Total Images"
-            value={stats.imagesCount}
-            description="Story covers and pages"
+            value={summary?.totalImages || 0}
+            description="Image files in Drive archive"
             icon={<ImageIcon className="w-5 h-5" />}
+          />
+          <StatsCard
+            title="Recent Updates"
+            value={summary?.recentFiles.length || 0}
+            description="Latest modified Drive files"
+            icon={<FolderUp className="w-5 h-5" />}
+            onClick={() => goToDriveOverview("recent")}
           />
         </div>
 
         {/* Detailed widgets grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <RecentStories stories={stories || []} />
+            <RecentDriveUpdates
+              files={(summary?.recentFiles || []).slice(0, 5)}
+              onViewAll={() => goToDriveOverview("recent")}
+            />
           </div>
           <div>
             <StorageWidget />
           </div>
         </div>
+
+        <EmptyDocsTable
+          docs={(summary?.emptyDocs || []).slice(0, 10)}
+          onViewAll={() => goToDriveOverview("empty")}
+        />
       </div>
     </PageLayout>
   );

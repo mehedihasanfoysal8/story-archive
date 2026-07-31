@@ -76,6 +76,27 @@ export async function downloadFileAsBlob(fileId: string): Promise<Blob> {
 }
 
 /**
+ * Exports a native Google Workspace file, such as Google Docs, as plain text.
+ */
+export async function exportGoogleDocAsText(fileId: string): Promise<string> {
+  const token = (await import("@/lib/auth/storage")).tokenStorage.getAccessToken();
+  if (!token) throw new Error("Not authenticated");
+
+  const url = new URL(`https://www.googleapis.com/drive/v3/files/${fileId}/export`);
+  url.searchParams.set("mimeType", "text/plain");
+
+  const response = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Export failed: ${response.statusText}`);
+  }
+
+  return response.text();
+}
+
+/**
  * Gets the public thumbnail URL for an image file
  */
 export function getFileThumbnailUrl(fileId: string, accessToken: string): string {

@@ -1,0 +1,14 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/favicon.ico/route": "/favicon.ico",
+  "/auth/callback/page": "/auth/callback",
+  "/dashboard/page": "/dashboard",
+  "/drive-overview/page": "/drive-overview",
+  "/folders/page": "/folders",
+  "/images/page": "/images",
+  "/page": "/",
+  "/search/page": "/search",
+  "/settings/page": "/settings",
+  "/stories/[id]/page": "/stories/[id]",
+  "/stories/page": "/stories"
+}

@@ -8,14 +8,26 @@ interface StatsCardProps {
   value: string | number;
   description?: string;
   icon?: ReactNode;
+  onClick?: () => void;
 }
 
-export function StatsCard({ title, value, description, icon }: StatsCardProps) {
+export function StatsCard({ title, value, description, icon, onClick }: StatsCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 rounded-2xl border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group"
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (onClick && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      className={`p-6 rounded-2xl border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group ${
+        onClick ? "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""
+      }`}
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">{title}</span>
