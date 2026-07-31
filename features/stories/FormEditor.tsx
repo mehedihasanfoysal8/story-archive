@@ -2,15 +2,14 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { StorySchema, type StorySchemaType } from "@/utils/validation";
+import { StorySchema } from "@/utils/validation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AGE_GROUPS, LANGUAGES } from "@/config/app";
-import { useEffect } from "react";
-
+import { useEffect, useRef } from "react";
 import type { Story } from "@/types/story";
 
 interface FormEditorProps {
@@ -19,9 +18,12 @@ interface FormEditorProps {
 }
 
 export function FormEditor({ value, onChange }: FormEditorProps) {
+  // Keep onChange stable via ref
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   const {
     register,
-    handleSubmit,
     setValue,
     watch,
     formState: { errors },
@@ -30,29 +32,42 @@ export function FormEditor({ value, onChange }: FormEditorProps) {
     defaultValues: value,
   });
 
-  // Watch all fields and trigger updates
-  const watchedValues = watch();
-
+  // Subscribe to form changes — fires only when values actually change
   useEffect(() => {
-    // Notify parent of state changes (for undo/redo, autosave)
-    onChange(watchedValues as Story);
-  }, [watchedValues]);
+    const subscription = watch((data) => {
+      onChangeRef.current(data as Story);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch]);
+
+  const watchedValues = watch();
 
   return (
     <form className="space-y-6 max-w-4xl mx-auto pb-12">
-      <Accordion type="multiple" defaultValue={["bangla", "original", "classification"]}>
-        {/* Bangla Details Accordion */}
-        <AccordionItem value="bangla" className="border rounded-2xl bg-card p-4 shadow-sm mb-4">
-          <AccordionTrigger className="hover:no-underline font-bold text-base px-2">
-            Bangla Story Metadata
-          </AccordionTrigger>
-          <AccordionContent className="pt-4 space-y-4 px-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Tabs defaultValue="bangla" className="w-full">
+        <TabsList className="grid grid-cols-3 w-full rounded-none border-b bg-muted/20">
+          <TabsTrigger value="bangla" className="text-sm py-3 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-primary">
+            Bangla
+          </TabsTrigger>
+          <TabsTrigger value="original" className="text-sm py-3 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-primary">
+            Original
+          </TabsTrigger>
+          <TabsTrigger value="metadata" className="text-sm py-3 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-primary">
+            Metadata
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="min-h-[400px]">
+          {/* Bangla Tab */}
+          <TabsContent value="bangla" className="p-6 space-y-4 m-0 border rounded-b-2xl bg-card shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-1.5 col-span-2">
-                <Label htmlFor="bangla_story_title">Bangla Story Title *</Label>
+                <Label htmlFor="fe_bangla_story_title">Bangla Story Title *</Label>
                 <Input
-                  id="bangla_story_title"
+                  id="fe_bangla_story_title"
+                  placeholder="e.g. ক্ষীরের পুতুল"
                   {...register("bangla_story_title")}
+                  className="text-lg bg-background"
                 />
                 {errors.bangla_story_title && (
                   <p className="text-xs text-destructive">{errors.bangla_story_title.message}</p>
@@ -60,26 +75,27 @@ export function FormEditor({ value, onChange }: FormEditorProps) {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bangla_writer_name">Bangla Writer Name</Label>
-                <Input id="bangla_writer_name" {...register("bangla_writer_name")} />
+                <Label htmlFor="fe_bangla_writer_name">Writer / Adapter</Label>
+                <Input id="fe_bangla_writer_name" placeholder="e.g. অবনীন্দ্রনাথ ঠাকুর" className="bg-background" {...register("bangla_writer_name")} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bangla_book_name">Bangla Book Name</Label>
-                <Input id="bangla_book_name" {...register("bangla_book_name")} />
+                <Label htmlFor="fe_bangla_book_name">Book / Anthology Name</Label>
+                <Input id="fe_bangla_book_name" placeholder="e.g. ছোটদের সেরা গল্প" className="bg-background" {...register("bangla_book_name")} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bangla_publisher">Bangla Publisher</Label>
-                <Input id="bangla_publisher" {...register("bangla_publisher")} />
+                <Label htmlFor="fe_bangla_publisher">Publisher</Label>
+                <Input id="fe_bangla_publisher" placeholder="e.g. আনন্দ পাবলিশার্স" className="bg-background" {...register("bangla_publisher")} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bangla_publication_year">Bangla Publication Year</Label>
+                <Label htmlFor="fe_bangla_publication_year">Publication Year</Label>
                 <Input
-                  id="bangla_publication_year"
+                  id="fe_bangla_publication_year"
                   type="number"
                   placeholder="e.g. 1995"
+                  className="bg-background"
                   value={watchedValues.bangla_publication_year ?? ""}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -89,59 +105,55 @@ export function FormEditor({ value, onChange }: FormEditorProps) {
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label htmlFor="story_in_bangla">Story in Bangla</Label>
+                <Label htmlFor="fe_story_in_bangla">Story in Bangla (Full Text)</Label>
                 <Textarea
-                  id="story_in_bangla"
-                  className="min-h-[160px]"
+                  id="fe_story_in_bangla"
+                  placeholder="পুরো গল্পের বাংলা টেক্সট এখানে লিখুন..."
+                  className="min-h-[250px] resize-y bg-background text-base"
                   {...register("story_in_bangla")}
                 />
               </div>
             </div>
-          </AccordionContent>
-        </AccordionItem>
+          </TabsContent>
 
-        {/* Original Language details */}
-        <AccordionItem value="original" className="border rounded-2xl bg-card p-4 shadow-sm mb-4">
-          <AccordionTrigger className="hover:no-underline font-bold text-base px-2">
-            Original Translation Metadata
-          </AccordionTrigger>
-          <AccordionContent className="pt-4 space-y-4 px-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Original Tab */}
+          <TabsContent value="original" className="p-6 space-y-4 m-0 border rounded-b-2xl bg-card shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-1.5">
-                <Label htmlFor="original_language">Original Language</Label>
+                <Label htmlFor="fe_original_language">Original Language</Label>
                 <Select
-                  value={watchedValues.original_language || "ALL"}
-                  onValueChange={(val) => setValue("original_language", val === "ALL" ? "" : val)}
+                  value={watchedValues.original_language || "_none"}
+                  onValueChange={(val) => setValue("original_language", val === "_none" ? "" : val)}
                 >
-                  <SelectTrigger id="original_language">
-                    <SelectValue placeholder="Select Language" />
+                  <SelectTrigger id="fe_original_language" className="bg-background">
+                    <SelectValue placeholder="Select language" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Select Language</SelectItem>
+                    <SelectItem value="_none">— Select Language —</SelectItem>
                     {LANGUAGES.map((l) => (
-                      <SelectItem key={l} value={l}>
-                        {l}
-                      </SelectItem>
+                      <SelectItem key={l} value={l}>{l}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="original_story_writer_name">Original Writer Name</Label>
-                <Input id="original_story_writer_name" {...register("original_story_writer_name")} />
+                <Label htmlFor="fe_original_story_writer_name">Original Author</Label>
+                <Input id="fe_original_story_writer_name" placeholder="e.g. Hans Christian Andersen" className="bg-background" {...register("original_story_writer_name")} />
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label htmlFor="original_story_book_name">Original Book Title</Label>
-                <Input id="original_story_book_name" {...register("original_story_book_name")} />
+                <Label htmlFor="fe_original_story_book_name">Original Book / Collection Title</Label>
+                <Input id="fe_original_story_book_name" placeholder="e.g. Fairy Tales" className="bg-background" {...register("original_story_book_name")} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="original_publication_year">Original Publication Year</Label>
+                <Label htmlFor="fe_original_publication_year">Original Publication Year</Label>
                 <Input
-                  id="original_publication_year"
+                  id="fe_original_publication_year"
                   type="number"
+                  placeholder="e.g. 1837"
+                  className="bg-background"
                   value={watchedValues.original_publication_year ?? ""}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -151,67 +163,61 @@ export function FormEditor({ value, onChange }: FormEditorProps) {
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label htmlFor="original_story_in_that_language">Story in Original Language</Label>
+                <Label htmlFor="fe_original_story_in_that_language">Story in Original Language</Label>
                 <Textarea
-                  id="original_story_in_that_language"
-                  className="min-h-[160px]"
+                  id="fe_original_story_in_that_language"
+                  placeholder="Original language text..."
+                  className="min-h-[250px] resize-y bg-background text-base"
                   {...register("original_story_in_that_language")}
                 />
               </div>
             </div>
-          </AccordionContent>
-        </AccordionItem>
+          </TabsContent>
 
-        {/* Classification Details */}
-        <AccordionItem value="classification" className="border rounded-2xl bg-card p-4 shadow-sm mb-4">
-          <AccordionTrigger className="hover:no-underline font-bold text-base px-2">
-            Classification & Folkloric Metadata
-          </AccordionTrigger>
-          <AccordionContent className="pt-4 space-y-4 px-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Metadata Tab */}
+          <TabsContent value="metadata" className="p-6 space-y-4 m-0 border rounded-b-2xl bg-card shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-1.5">
-                <Label htmlFor="origin_country">Origin Country</Label>
-                <Input id="origin_country" {...register("origin_country")} />
+                <Label htmlFor="fe_origin_country">Origin Country</Label>
+                <Input id="fe_origin_country" placeholder="e.g. Bangladesh" className="bg-background" {...register("origin_country")} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="source_tradition">Source Tradition / Folklore Category</Label>
-                <Input id="source_tradition" {...register("source_tradition")} />
+                <Label htmlFor="fe_source_tradition">Source Tradition / Category</Label>
+                <Input id="fe_source_tradition" placeholder="e.g. Folk Tales" className="bg-background" {...register("source_tradition")} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="atu_tale_type">ATU (Aarne-Thompson-Uther) Classification Type</Label>
-                <Input id="atu_tale_type" placeholder="e.g. ATU 300" {...register("atu_tale_type")} />
+                <Label htmlFor="fe_atu_tale_type">ATU Tale Type</Label>
+                <Input id="fe_atu_tale_type" placeholder="e.g. ATU 300" className="bg-background" {...register("atu_tale_type")} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="target_age_group">Target Age Group</Label>
+                <Label htmlFor="fe_target_age_group">Target Age Group</Label>
                 <Select
-                  value={watchedValues.target_age_group || "ALL"}
-                  onValueChange={(val) => setValue("target_age_group", val === "ALL" ? "" : val)}
+                  value={watchedValues.target_age_group || "_none"}
+                  onValueChange={(val) => setValue("target_age_group", val === "_none" ? "" : val)}
                 >
-                  <SelectTrigger id="target_age_group">
-                    <SelectValue placeholder="Select Age Group" />
+                  <SelectTrigger id="fe_target_age_group" className="bg-background">
+                    <SelectValue placeholder="Select age group" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">Select Age Group</SelectItem>
+                    <SelectItem value="_none">— Select Age Group —</SelectItem>
                     {AGE_GROUPS.map((a) => (
-                      <SelectItem key={a} value={a}>
-                        {a}
-                      </SelectItem>
+                      <SelectItem key={a} value={a}>{a}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label htmlFor="moral_or_theme">Moral Lesson or Aesthetic Theme</Label>
-                <Textarea id="moral_or_theme" {...register("moral_or_theme")} />
+                <Label htmlFor="fe_moral_or_theme">Moral / Central Theme</Label>
+                <Textarea id="fe_moral_or_theme" placeholder="e.g. Honesty is the best policy..." className="bg-background min-h-[100px]" {...register("moral_or_theme")} />
               </div>
             </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+          </TabsContent>
+        </div>
+      </Tabs>
     </form>
   );
 }

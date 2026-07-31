@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, User, Calendar, Globe, Trash2, Edit2, Copy, FileText } from "lucide-react";
+import { BookOpen, User, Calendar, Globe, Trash2, Edit2, Copy, FileText, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatRelativeDate } from "@/utils/helpers";
 import { getImageUrl } from "@/services/images";
@@ -13,7 +13,7 @@ import { useState, useEffect } from "react";
 
 interface StoryCardProps {
   story: StoryWithMeta;
-  onDelete: (storyFolderId: string) => void;
+  onDelete: (storyFileId: string) => void;
   onDuplicate: (story: StoryWithMeta) => void;
   onPreview: (story: StoryWithMeta) => void;
 }
@@ -90,6 +90,12 @@ export function StoryCard({
 
         <div className="space-y-3 pt-2">
           <div className="flex flex-wrap gap-y-1.5 gap-x-3 text-xs text-muted-foreground border-t pt-3">
+            {story.folderName && (
+              <span className="flex items-center gap-1 truncate max-w-full w-full font-mono text-[10px] text-muted-foreground/70">
+                <FolderOpen className="w-3 h-3 flex-shrink-0" />
+                {story.folderName}
+              </span>
+            )}
             {story.bangla_writer_name && (
               <span className="flex items-center gap-1 truncate max-w-[120px]">
                 <User className="w-3.5 h-3.5" />
@@ -116,7 +122,7 @@ export function StoryCard({
               variant="ghost"
               size="icon"
               className="w-9 h-9 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => onDelete(story.driveFolderId)}
+              onClick={() => onDelete(story.driveFileId)}
             >
               <Trash2 className="w-4 h-4" />
             </Button>

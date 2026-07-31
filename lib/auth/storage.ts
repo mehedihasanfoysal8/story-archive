@@ -109,8 +109,42 @@ export const userStorage = new UserStorage();
 export const rootFolderStorage = new RootFolderStorage();
 export const clientIdStorage = new ClientIdStorage();
 
+class PendingStoryStorage {
+  getPending(): string[] {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem("pending_stories");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  addPending(fileId: string): void {
+    if (typeof window === "undefined") return;
+    const current = this.getPending();
+    if (!current.includes(fileId)) {
+      localStorage.setItem("pending_stories", JSON.stringify([...current, fileId]));
+    }
+  }
+
+  removePending(fileId: string): void {
+    if (typeof window === "undefined") return;
+    const current = this.getPending();
+    const updated = current.filter((id) => id !== fileId);
+    if (updated.length > 0) {
+      localStorage.setItem("pending_stories", JSON.stringify(updated));
+    } else {
+      localStorage.removeItem("pending_stories");
+    }
+  }
+}
+
+export const pendingStoryStorage = new PendingStoryStorage();
+
 export function clearAllStorage(): void {
   tokenStorage.clearToken();
   userStorage.clearUser();
   rootFolderStorage.clearRootFolderId();
+  localStorage.removeItem("pending_stories");
 }

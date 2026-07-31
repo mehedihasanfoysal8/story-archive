@@ -25,6 +25,7 @@ export type StoryFormData = Omit<Story, "story_id" | "image_ids" | "num_images">
 export interface StoryWithMeta extends Story {
   driveFileId: string;
   driveFolderId: string;
+  folderName?: string;
   coverImageId?: string;
   folderPath: string[];
   lastModified: string;

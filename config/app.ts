@@ -38,6 +38,7 @@ export const ROUTES = {
   home: "/",
   dashboard: "/dashboard",
   stories: "/stories",
+  newStory: "/stories/new",
   story: (id: string) => `/stories/${id}`,
   storyPreview: (id: string) => `/stories/${id}/preview`,
   folders: "/folders",

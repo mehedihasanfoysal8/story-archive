@@ -81,7 +81,7 @@ export function DashboardPage() {
               Folder Explorer
             </Button>
             <Button
-              onClick={() => router.push(ROUTES.stories)}
+              onClick={() => router.push(ROUTES.newStory)}
               size="sm"
               className="rounded-xl shadow-md"
               id="new-story-btn"

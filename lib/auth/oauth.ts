@@ -113,3 +113,86 @@ export async function fetchUserProfile(accessToken: string) {
 
   return response.json();
 }
+
+/**
+ * Initiates a silent refresh of the access token using a hidden iframe.
+ * Uses prompt=none to skip the consent screen if the user is already logged in.
+ */
+export function refreshAccessTokenSilent(customClientId?: string): Promise<OAuthToken> {
+  return new Promise((resolve, reject) => {
+    const activeClientId = customClientId || GOOGLE_CONFIG.clientId;
+    if (!activeClientId) {
+      return reject(new Error("CLIENT_ID_REQUIRED"));
+    }
+
+    const state = generateState();
+    sessionStorage.setItem("oauth_state", state);
+
+    const params = new URLSearchParams({
+      client_id: activeClientId,
+      redirect_uri: getRedirectUri(),
+      response_type: "token",
+      scope: GOOGLE_CONFIG.scopes,
+      state,
+      prompt: "none", // Key parameter for silent refresh
+    });
+
+    const url = `${GOOGLE_CONFIG.authEndpoint}?${params.toString()}`;
+    
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
+
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error("Silent refresh timeout"));
+    }, 15000); // 15 seconds timeout
+
+    const handleMessage = (event: MessageEvent) => {
+      // Ensure the message is coming from our own origin
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data?.type === "OAUTH_SILENT_REFRESH") {
+        cleanup();
+        
+        const payload = event.data.payload;
+        if (payload.error) {
+          return reject(new Error(payload.error_description || payload.error));
+        }
+
+        const stateFromIframe = payload.state;
+        const storedState = sessionStorage.getItem("oauth_state");
+        if (storedState && stateFromIframe && stateFromIframe !== storedState) {
+          console.warn("State mismatch during silent refresh");
+        }
+
+        if (!payload.access_token) {
+          return reject(new Error("No access_token returned during silent refresh."));
+        }
+
+        const token: OAuthToken = {
+          access_token: payload.access_token,
+          expires_in: Number(payload.expires_in) || 3600,
+          token_type: payload.token_type || "Bearer",
+          scope: payload.scope || GOOGLE_CONFIG.scopes,
+        };
+
+        tokenStorage.setToken(token);
+        sessionStorage.removeItem("oauth_state");
+        
+        resolve(token);
+      }
+    };
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("message", handleMessage);
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    document.body.appendChild(iframe);
+  });
+}

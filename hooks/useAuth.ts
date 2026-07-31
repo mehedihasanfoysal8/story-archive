@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { initiateOAuthFlow, handleOAuthCallback, revokeToken, fetchUserProfile } from "@/lib/auth/oauth";
+import { initiateOAuthFlow, handleOAuthCallback, revokeToken, fetchUserProfile, refreshAccessTokenSilent } from "@/lib/auth/oauth";
 import { tokenStorage, userStorage, rootFolderStorage, clearAllStorage } from "@/lib/auth/storage";
 import type { AuthState, GoogleUserProfile, StoredToken } from "@/types/auth";
 
@@ -92,6 +92,32 @@ export function useAuth() {
     },
     []
   );
+
+  // Setup automatic silent refresh
+  useEffect(() => {
+    if (!state.isAuthenticated) return;
+
+    const checkInterval = setInterval(async () => {
+      const storedToken = tokenStorage.getToken();
+      if (storedToken) {
+        const expiresInMs = storedToken.expires_at - Date.now();
+        // Refresh 5 minutes before expiration (300,000 ms)
+        if (expiresInMs < 300000 && expiresInMs > 0) {
+          try {
+            await refreshAccessTokenSilent();
+            refreshState();
+          } catch (error) {
+            console.error("Silent token refresh failed:", error);
+          }
+        } else if (expiresInMs <= 0) {
+          // Token fully expired, force logout
+          logout();
+        }
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(checkInterval);
+  }, [state.isAuthenticated, refreshState, logout]);
 
   return {
     ...state,

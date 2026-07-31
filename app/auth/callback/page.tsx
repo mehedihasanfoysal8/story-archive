@@ -32,6 +32,15 @@ function AuthCallbackContent() {
 
       const mergedParams = { ...queryParams, ...hashParams };
 
+      // Handle silent refresh (iframe)
+      if (typeof window !== "undefined" && window.self !== window.top) {
+        window.parent.postMessage({
+          type: "OAUTH_SILENT_REFRESH",
+          payload: mergedParams
+        }, window.location.origin);
+        return;
+      }
+
       if (mergedParams.error) {
         setStatus("error");
         setErrorMessage(mergedParams.error_description || `OAuth error: ${mergedParams.error}`);

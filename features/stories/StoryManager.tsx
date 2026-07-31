@@ -7,7 +7,6 @@ import { useSearch } from "@/hooks/useSearch";
 import { StoryCard } from "./StoryCard";
 import { StoryTable } from "./StoryTable";
 import { StoryPreview } from "./StoryPreview";
-import { CreateStoryModal } from "./CreateStoryModal";
 import { ImportExportMenu } from "./ImportExportMenu";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { PageLayout } from "@/components/layout/PageLayout";
@@ -32,13 +31,11 @@ export function StoryManager() {
   const createStoryMutation = useCreateStory();
 
   // State
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [previewStory, setPreviewStory] = useState<StoryWithMeta | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-
-  const [createOpen, setCreateOpen] = useState(false);
 
   // Search & Filter hook
   const {
@@ -55,8 +52,8 @@ export function StoryManager() {
   } = useSearch(stories);
 
   const handleDuplicate = async (story: StoryWithMeta) => {
-    const newId = `${story.story_id}_copy`;
-    const newFolderName = `${story.driveFolderId}_copy`;
+    const newId = generateNumericStoryId();
+    const newFolderName = `story_${newId}`;
 
     await duplicateStoryMutation.mutateAsync({
       sourceFileId: story.driveFileId,
@@ -119,8 +116,11 @@ export function StoryManager() {
           </div>
 
           <div className="flex items-center gap-2 self-end">
+            <Button variant="outline" size="icon" onClick={() => refetch()} disabled={isLoading} title="Refresh Stories" className="rounded-xl">
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            </Button>
             <ImportExportMenu onImport={handleImportJSON} />
-            <Button onClick={() => setCreateOpen(true)} className="rounded-xl shadow-md">
+            <Button onClick={() => router.push(ROUTES.newStory)} className="rounded-xl shadow-md">
               <Plus className="w-4 h-4 mr-2" />
               Create Story
             </Button>
@@ -248,13 +248,6 @@ export function StoryManager() {
         confirmLabel="Delete Permanently"
         variant="destructive"
         onConfirm={handleDeleteConfirm}
-        isLoading={deleteStoryMutation.isPending}
-      />
-
-      {/* Full-Featured Create Story Modal */}
-      <CreateStoryModal
-        open={createOpen}
-        onOpenChange={setCreateOpen}
       />
     </PageLayout>
   );

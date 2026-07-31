@@ -74,10 +74,29 @@ export async function updateStory(fileId: string, story: Story): Promise<DriveFi
 }
 
 /**
- * Deletes an entire story folder (including all files inside)
+ * Deletes the story JSON file and image files in the same folder.
+ * Other files (non-image, non-json) in the folder are NOT touched.
  */
-export async function deleteStoryFolder(storyFolderId: string): Promise<void> {
-  return deleteFolder(storyFolderId);
+export async function deleteStoryFolder(storyFileId: string): Promise<void> {
+  // Get the JSON file's parent folder
+  const { driveGet } = await import("./drive/client");
+  const file = await driveGet<{ id: string; parents?: string[] }>(`/files/${storyFileId}`, {
+    fields: "id,parents"
+  });
+  const parentFolderId = file.parents?.[0];
+
+  // Delete the story JSON file first
+  await deleteFile(storyFileId);
+
+  // Delete ONLY image files in the same folder
+  if (parentFolderId) {
+    const { listFilesInFolder } = await import("./drive/files");
+    const allFiles = await listFilesInFolder(parentFolderId);
+    const imageFiles = allFiles.filter(f => f.mimeType.startsWith("image/"));
+    if (imageFiles.length > 0) {
+      await Promise.all(imageFiles.map(f => deleteFile(f.id)));
+    }
+  }
 }
 
 /**
@@ -94,9 +113,53 @@ export async function fetchStoriesWithMeta(
   rootFolderId: string
 ): Promise<StoryWithMeta[]> {
   const storyFiles = await listAllStories(rootFolderId);
+  const fetchedIds = new Set(storyFiles.map(f => f.id));
+
+  // Check for any pending stories that haven't been indexed by Drive yet
+  let pendingIds: string[] = [];
+  if (typeof window !== "undefined") {
+    try {
+      const { pendingStoryStorage } = await import("@/lib/auth/storage");
+      const currentPending = pendingStoryStorage.getPending();
+      
+      for (const id of currentPending) {
+        if (fetchedIds.has(id)) {
+          // It was found! Drive has indexed it, we can remove it.
+          pendingStoryStorage.removePending(id);
+        } else {
+          // Still not indexed, we need to fetch it manually
+          pendingIds.push(id);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to process pending stories", e);
+    }
+  }
+
+  // We need to construct DriveFile-like objects for pending IDs so they can be processed
+  // Normally `listAllStories` returns files with parents, but we might not know the exact parent
+  // We'll just fetch the file directly to get its parents
+  const { driveGet } = await import("./drive/client");
+  const { DRIVE_FIELDS } = await import("@/config/app");
+  
+  const pendingFilesPromises = pendingIds.map(async (id) => {
+    try {
+      const file = await driveGet<DriveFile>(`/files/${id}`, {
+        fields: DRIVE_FIELDS.file + ",parents"
+      });
+      return file;
+    } catch {
+      return null;
+    }
+  });
+
+  const pendingFilesResult = await Promise.all(pendingFilesPromises);
+  const validPendingFiles = pendingFilesResult.filter(Boolean) as DriveFile[];
+
+  const allFilesToProcess = [...storyFiles, ...validPendingFiles];
 
   const stories = await Promise.allSettled(
-    storyFiles.map(async (file) => {
+    allFilesToProcess.map(async (file) => {
       const story = await readStory(file.id);
       const parentId = file.parents?.[0] || "";
 
@@ -110,9 +173,39 @@ export async function fetchStoriesWithMeta(
     })
   );
 
-  return stories
+  const fetched = stories
     .filter((r) => r.status === "fulfilled")
     .map((r) => (r as PromiseFulfilledResult<StoryWithMeta>).value);
+
+  // Deduplicate by driveFileId
+  const seen = new Set<string>();
+  const deduped = fetched.filter(s => {
+    if (seen.has(s.driveFileId)) return false;
+    seen.add(s.driveFileId);
+    return true;
+  });
+
+  // Batch-fetch unique folder names (one request per unique folder)
+  const uniqueFolderIds = [...new Set(deduped.map(s => s.driveFolderId).filter(Boolean))];
+  const folderNameMap: Record<string, string> = {};
+
+  await Promise.all(
+    uniqueFolderIds.map(async (folderId) => {
+      try {
+        const folder = await driveGet<{ id: string; name: string }>(`/files/${folderId}`, {
+          fields: "id,name"
+        });
+        folderNameMap[folderId] = folder.name;
+      } catch {
+        folderNameMap[folderId] = folderId; // fallback to ID if fetch fails
+      }
+    })
+  );
+
+  return deduped.map(s => ({
+    ...s,
+    folderName: folderNameMap[s.driveFolderId] || s.driveFolderId,
+  }));
 }
 
 /**

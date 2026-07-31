@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Link from "next/link";
-import { BookOpen, Edit, Trash2, Copy, FileText, Globe, User, Calendar } from "lucide-react";
+import { BookOpen, Edit, Trash2, Copy, FileText, Globe, User, Calendar, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/utils/helpers";
 import type { StoryWithMeta } from "@/types/story";
@@ -44,9 +44,10 @@ export function StoryTable({
       {/* Table Header */}
       <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-muted/40 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wider select-none">
         <div className="col-span-4">Title</div>
-        <div className="col-span-3">Writer</div>
+        <div className="col-span-2">Writer</div>
+        <div className="col-span-2">Folder</div>
         <div className="col-span-2">Country</div>
-        <div className="col-span-2">Last Modified</div>
+        <div className="col-span-1">Modified</div>
         <div className="col-span-1 text-right">Actions</div>
       </div>
 
@@ -81,16 +82,19 @@ export function StoryTable({
                     {story.bangla_story_title || "Untitled Story"}
                   </span>
                 </div>
-                <div className="col-span-3 text-sm text-muted-foreground truncate pr-2 flex items-center gap-1.5">
+                <div className="col-span-2 text-sm text-muted-foreground truncate pr-2 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="truncate">{story.bangla_writer_name || "—"}</span>
+                </div>
+                <div className="col-span-2 text-sm text-muted-foreground truncate pr-2 flex items-center gap-1.5">
+                  <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate font-mono text-xs">{story.folderName || "—"}</span>
                 </div>
                 <div className="col-span-2 text-sm text-muted-foreground truncate pr-2 flex items-center gap-1.5">
                   <Globe className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="truncate">{story.origin_country || "—"}</span>
                 </div>
-                <div className="col-span-2 text-sm text-muted-foreground truncate flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                <div className="col-span-1 text-sm text-muted-foreground truncate flex items-center gap-1.5">
                   <span>{formatDate(story.lastModified)}</span>
                 </div>
                 <div className="col-span-1 flex items-center justify-end gap-1">
@@ -117,7 +121,7 @@ export function StoryTable({
                     variant="ghost"
                     size="icon"
                     className="w-7 h-7 rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => onDelete(story.driveFolderId)}
+                    onClick={() => onDelete(story.driveFileId)}
                     title="Delete"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

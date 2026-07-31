@@ -12,7 +12,8 @@ export function useStories(rootFolderId: string | null) {
     queryKey: [STORIES_QUERY_KEY, rootFolderId],
     queryFn: () => fetchStoriesWithMeta(rootFolderId!),
     enabled: !!rootFolderId,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0, // Always refetch from Drive on page visit
+    gcTime: 1000 * 60 * 2, // Keep unused cache for 2 min only
   });
 }
 
@@ -29,9 +30,29 @@ export function useCreateStory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: createStory,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [STORIES_QUERY_KEY] });
-      toast.success("Story created successfully");
+    onSuccess: (data, variables) => {
+      import("@/lib/auth/storage").then(({ pendingStoryStorage }) => {
+        pendingStoryStorage.addPending(data.storyFileId);
+      });
+      
+      const newStory: StoryWithMeta = {
+        ...variables.story,
+        driveFileId: data.storyFileId,
+        driveFolderId: data.storyFolderId,
+        lastModified: new Date().toISOString(),
+        folderPath: [],
+      };
+      
+      qc.setQueryData<StoryWithMeta[]>([STORIES_QUERY_KEY, variables.rootFolderId], (old) => {
+        if (!old) return [newStory];
+        if (old.some(s => s.story_id === newStory.story_id)) return old;
+        return [newStory, ...old];
+      });
+      
+      // Deliberately skipping invalidateQueries here.
+      // Drive's search index takes a few minutes to update.
+      // We manually injected it into the cache, so invalidating now 
+      // would fetch stale data from Drive and overwrite our optimistic update!
     },
     onError: (err: Error) => toast.error(`Failed to create story: ${err.message}`),
   });
