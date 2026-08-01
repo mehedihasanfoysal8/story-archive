@@ -11,13 +11,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AGE_GROUPS, LANGUAGES } from "@/config/app";
 import { useEffect, useRef } from "react";
 import type { Story } from "@/types/story";
+import { StoryImageManager } from "../images/StoryImageManager";
+import { Image as ImageIcon } from "lucide-react";
 
 interface FormEditorProps {
   value: Story;
   onChange: (value: Story) => void;
+  folderId?: string | null;
 }
 
-export function FormEditor({ value, onChange }: FormEditorProps) {
+export function FormEditor({ value, onChange, folderId }: FormEditorProps) {
   // Keep onChange stable via ref
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -45,7 +48,7 @@ export function FormEditor({ value, onChange }: FormEditorProps) {
   return (
     <form className="space-y-6 max-w-4xl mx-auto pb-12">
       <Tabs defaultValue="bangla" className="w-full">
-        <TabsList className="grid grid-cols-3 w-full rounded-none border-b bg-muted/20">
+        <TabsList className="grid grid-cols-4 w-full rounded-none border-b bg-muted/20">
           <TabsTrigger value="bangla" className="text-sm py-3 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-primary">
             Bangla
           </TabsTrigger>
@@ -54,6 +57,10 @@ export function FormEditor({ value, onChange }: FormEditorProps) {
           </TabsTrigger>
           <TabsTrigger value="metadata" className="text-sm py-3 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-primary">
             Metadata
+          </TabsTrigger>
+          <TabsTrigger value="images" className="text-sm py-3 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-primary">
+            <ImageIcon className="w-4 h-4 mr-2" />
+            Images
           </TabsTrigger>
         </TabsList>
 
@@ -215,6 +222,17 @@ export function FormEditor({ value, onChange }: FormEditorProps) {
                 <Textarea id="fe_moral_or_theme" placeholder="e.g. Honesty is the best policy..." className="bg-background min-h-[100px]" {...register("moral_or_theme")} />
               </div>
             </div>
+          </TabsContent>
+
+          {/* Images Tab */}
+          <TabsContent value="images" className="p-6 space-y-4 m-0 border rounded-b-2xl bg-card shadow-sm">
+            {folderId ? (
+              <StoryImageManager folderId={folderId} storyId={value.story_id} />
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                Cannot load images: No folder associated with this story yet.
+              </div>
+            )}
           </TabsContent>
         </div>
       </Tabs>

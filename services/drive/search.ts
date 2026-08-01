@@ -50,7 +50,7 @@ export async function searchStoryFiles(
   const conditions = [
     "trashed = false",
     "mimeType = 'application/json'",
-    `name = 'story.json'`,
+    `name = 'stories.json'`,
   ];
 
   if (query) {

@@ -1,249 +1,287 @@
-import { uploadFile, updateFileContent, downloadFileAsText, deleteFile, findFileByName, listFilesInFolder } from "./drive/files";
-import { createFolder, getOrCreateFolder, listFolderContents, deleteFile as deleteFolder } from "./drive/folders";
+import { uploadFile, updateFileContent, downloadFileAsText, deleteFile, listFilesInFolder, findFileByName } from "./drive/files";
 import { searchStoryFiles } from "./drive/search";
-import { APP_CONFIG } from "@/config/app";
+import { APP_CONFIG, DRIVE_FIELDS } from "@/config/app";
 import type { Story, StoryWithMeta } from "@/types/story";
 import type { DriveFile } from "@/types/drive";
+import { driveGet } from "./drive/client";
 
-export interface CreateStoryOptions {
-  story: Story;
-  rootFolderId: string;
-  country?: string;
-  collection?: string;
-  storyFolderName?: string;
-  targetFolderId?: string;
-  /** Custom filename for the story json (e.g. "my_story.json"). Required when using targetFolderId. */
-  fileName?: string;
+// ---------------------------------------------------------------------------
+// Helpers: human-readable newlines in JSON string values
+// ---------------------------------------------------------------------------
+
+/**
+ * After JSON.stringify, replaces \n escape sequences with actual newlines
+ * so the file is human-readable. Also replaces escaped double quotes (\")
+ * with standard double quotes (") as requested by the user.
+ */
+function toHumanReadable(json: string): string {
+  return json
+    .replace(/\\n/g, "\n")
+    .replace(/\\"/g, '"');
 }
 
 /**
- * Creates a story in Drive.
- * - If `targetFolderId` + `fileName` are given: uploads story.json directly to targetFolderId (no new subfolder).
- * - Otherwise: creates a country/collection/storyFolder hierarchy and uploads inside.
+ * Before JSON.parse, escapes actual newlines and standard double quotes
+ * that are INSIDE string values back to their escaped forms, so the parser
+ * can handle them. We use regex to identify string values based on the
+ * known formatting of our custom JSON.
  */
-export async function createStory(options: CreateStoryOptions): Promise<{
-  storyFolderId: string;
-  storyFileId: string;
-}> {
-  const { story, rootFolderId, country, collection, storyFolderName, targetFolderId, fileName } = options;
+function toValidJson(content: string): string {
+  return content.replace(
+    /"([a-zA-Z0-9_]+)":\s*"([\s\S]*?)"(?=,\n\s*"[a-zA-Z0-9_]+":|\n\s*\})/g,
+    (match, key, innerString) => {
+      const escapedInner = innerString
+        .replace(/\\/g, "\\\\") // Escape existing backslashes
+        .replace(/"/g, '\\"')  // Escape double quotes
+        .replace(/\n/g, "\\n") // Escape newlines
+        .replace(/\r/g, "");   // Strip carriage returns just in case
+      return `"${key}": "${escapedInner}"`;
+    }
+  );
+}
 
-  let parentFolderId = rootFolderId;
+// ---------------------------------------------------------------------------
+// Core read/write helpers
+// ---------------------------------------------------------------------------
 
-  if (targetFolderId && fileName) {
-    // Direct placement: upload the .json directly into the selected folder
-    parentFolderId = targetFolderId;
-  } else {
-    // Folder hierarchy mode
-    if (country) {
-      parentFolderId = (await getOrCreateFolder(country, parentFolderId)).id;
-    }
-    if (collection) {
-      parentFolderId = (await getOrCreateFolder(collection, parentFolderId)).id;
-    }
-    if (storyFolderName) {
-      parentFolderId = (await createFolder(storyFolderName, parentFolderId)).id;
-    }
+/**
+ * Reads a stories.json file.
+ * Supports:
+ *   - {obj1},{obj2}  (our format — comma-separated objects, no outer brackets)
+ *   - [{obj1},{obj2}] (legacy standard JSON array)
+ * Also handles actual newlines stored in text fields.
+ */
+export async function readStoriesArray(fileId: string): Promise<Story[]> {
+  const raw = (await downloadFileAsText(fileId)).trim();
+  if (!raw) return [];
+
+  // First, escape actual newlines inside string values back to \n
+  const escaped = toValidJson(raw);
+
+  // Wrap in [] if not already an array
+  const jsonToParse = escaped.startsWith("[")
+    ? escaped
+    : "[" + escaped.replace(/,\s*$/, "") + "]";
+
+  try {
+    const parsed = JSON.parse(jsonToParse);
+    return Array.isArray(parsed) ? (parsed as Story[]) : [parsed as Story];
+  } catch (err) {
+    console.error("Failed to parse stories JSON:", err);
+    return [];
   }
-
-  // Upload story JSON
-  const actualFileName = fileName || APP_CONFIG.storyFileName;
-  const storyJson = JSON.stringify(story, null, 2);
-  const blob = new Blob([storyJson], { type: "application/json" });
-  const storyFile = await uploadFile(actualFileName, blob, parentFolderId, "application/json");
-
-  return { storyFolderId: parentFolderId, storyFileId: storyFile.id };
-}
-
-
-/**
- * Reads and parses a story.json from Drive
- */
-export async function readStory(fileId: string): Promise<Story> {
-  const text = await downloadFileAsText(fileId);
-  const parsed = JSON.parse(text) as Story;
-  return parsed;
 }
 
 /**
- * Updates a story.json in Drive
+ * Writes stories as comma-separated JSON objects WITHOUT outer brackets.
+ * Newlines in text values are stored as actual newlines (not \\n).
  */
-export async function updateStory(fileId: string, story: Story): Promise<DriveFile> {
-  const json = JSON.stringify(story, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
+export async function writeStoriesArray(fileId: string, stories: Story[]): Promise<DriveFile> {
+  const parts = stories.map((s) => toHumanReadable(JSON.stringify(s, null, 2)));
+  const content = parts.join(",\n");
+  const blob = new Blob([content], { type: "application/json" });
   return updateFileContent(fileId, blob);
 }
 
+// ---------------------------------------------------------------------------
+// Public CRUD operations
+// ---------------------------------------------------------------------------
+
+export interface AddStoryOptions {
+  /** Drive folder ID where stories.json lives (or will be created) */
+  folderId: string;
+  story: Story;
+}
+
 /**
- * Deletes the story JSON file and image files in the same folder.
- * Other files (non-image, non-json) in the folder are NOT touched.
+ * Adds a story to the folder's stories.json.
+ * Creates stories.json if it doesn't exist yet.
+ * Returns the Drive file ID of stories.json.
  */
-export async function deleteStoryFolder(storyFileId: string): Promise<void> {
-  // Get the JSON file's parent folder
-  const { driveGet } = await import("./drive/client");
-  const file = await driveGet<{ id: string; parents?: string[] }>(`/files/${storyFileId}`, {
-    fields: "id,parents"
-  });
-  const parentFolderId = file.parents?.[0];
+export async function addStoryToFolder(options: AddStoryOptions): Promise<string> {
+  const { folderId, story } = options;
 
-  // Delete the story JSON file first
-  await deleteFile(storyFileId);
+  // Find existing stories.json in the folder
+  const existing = await findFileByName(APP_CONFIG.storyFileName, folderId);
 
-  // Delete ONLY image files in the same folder
-  if (parentFolderId) {
-    const { listFilesInFolder } = await import("./drive/files");
-    const allFiles = await listFilesInFolder(parentFolderId);
-    const imageFiles = allFiles.filter(f => f.mimeType.startsWith("image/"));
-    if (imageFiles.length > 0) {
-      await Promise.all(imageFiles.map(f => deleteFile(f.id)));
+  if (existing) {
+    // Read existing array, append, write back
+    const stories = await readStoriesArray(existing.id);
+
+    // Prevent duplicate story_id
+    if (stories.some((s) => s.story_id === story.story_id)) {
+      throw new Error(`A story with ID "${story.story_id}" already exists in this folder.`);
     }
+
+    stories.push(story);
+    await writeStoriesArray(existing.id, stories);
+    return existing.id;
+  } else {
+    // Create new stories.json with this story as first entry (no outer brackets)
+    const content = toHumanReadable(JSON.stringify(story, null, 2));
+    const blob = new Blob([content], { type: "application/json" });
+    const file = await uploadFile(APP_CONFIG.storyFileName, blob, folderId, "application/json");
+    return file.id;
   }
 }
 
 /**
- * Lists all story.json files under the root folder
+ * Reads a single story from a stories.json file by story_id.
  */
-export async function listAllStories(rootFolderId: string): Promise<DriveFile[]> {
-  return searchStoryFiles(rootFolderId);
+export async function readStory(storiesFileId: string, storyId: string): Promise<Story> {
+  const stories = await readStoriesArray(storiesFileId);
+  const found = stories.find((s) => s.story_id === storyId);
+  if (!found) throw new Error(`Story "${storyId}" not found in file.`);
+  return found;
 }
 
 /**
- * Fetches and hydrates all stories with their metadata
+ * Updates a single story in its stories.json file.
  */
-export async function fetchStoriesWithMeta(
-  rootFolderId: string
-): Promise<StoryWithMeta[]> {
-  const storyFiles = await listAllStories(rootFolderId);
-  const fetchedIds = new Set(storyFiles.map(f => f.id));
+export async function updateStory(storiesFileId: string, story: Story): Promise<void> {
+  const stories = await readStoriesArray(storiesFileId);
+  let idx = stories.findIndex((s) => s.story_id === story.story_id);
 
-  // Check for any pending stories that haven't been indexed by Drive yet
-  let pendingIds: string[] = [];
-  if (typeof window !== "undefined") {
-    try {
-      const { pendingStoryStorage } = await import("@/lib/auth/storage");
-      const currentPending = pendingStoryStorage.getPending();
-      
-      for (const id of currentPending) {
-        if (fetchedIds.has(id)) {
-          // It was found! Drive has indexed it, we can remove it.
-          pendingStoryStorage.removePending(id);
-        } else {
-          // Still not indexed, we need to fetch it manually
-          pendingIds.push(id);
-        }
-      }
-    } catch (e) {
-      console.warn("Failed to process pending stories", e);
+  if (idx === -1) {
+    // Legacy: single-story file where story_id might differ — update index 0
+    if (stories.length === 1) {
+      idx = 0;
+    } else {
+      throw new Error(`Story "${story.story_id}" not found — cannot update.`);
     }
   }
 
-  // We need to construct DriveFile-like objects for pending IDs so they can be processed
-  // Normally `listAllStories` returns files with parents, but we might not know the exact parent
-  // We'll just fetch the file directly to get its parents
-  const { driveGet } = await import("./drive/client");
-  const { DRIVE_FIELDS } = await import("@/config/app");
-  
-  const pendingFilesPromises = pendingIds.map(async (id) => {
-    try {
-      const file = await driveGet<DriveFile>(`/files/${id}`, {
-        fields: DRIVE_FIELDS.file + ",parents"
-      });
-      return file;
-    } catch {
-      return null;
-    }
-  });
+  stories[idx] = story;
+  await writeStoriesArray(storiesFileId, stories);
+}
 
-  const pendingFilesResult = await Promise.all(pendingFilesPromises);
-  const validPendingFiles = pendingFilesResult.filter(Boolean) as DriveFile[];
+/**
+ * Removes a story from its stories.json file. Also deletes image files.
+ * Does NOT delete the stories.json file itself or the folder.
+ */
+export async function deleteStoryFromFile(storiesFileId: string, storyId: string, folderId: string): Promise<void> {
+  // Remove from array
+  const stories = await readStoriesArray(storiesFileId);
+  const story = stories.find((s) => s.story_id === storyId);
+  const updated = stories.filter((s) => s.story_id !== storyId);
+  await writeStoriesArray(storiesFileId, updated);
 
-  const allFilesToProcess = [...storyFiles, ...validPendingFiles];
+  // Delete associated image files from the folder
+  if (story && story.image_ids && story.image_ids.length > 0) {
+    const folderFiles = await listFilesInFolder(folderId);
+    const imageFiles = folderFiles.filter(
+      (f) => f.mimeType.startsWith("image/") && story.image_ids.some((id) => f.name.startsWith(id))
+    );
+    await Promise.all(imageFiles.map((f) => deleteFile(f.id)));
+  }
+}
 
-  const stories = await Promise.allSettled(
-    allFilesToProcess.map(async (file) => {
-      const story = await readStory(file.id);
-      const parentId = file.parents?.[0] || "";
+// ---------------------------------------------------------------------------
+// Listing / fetching all stories
+// ---------------------------------------------------------------------------
 
-      return {
-        ...story,
-        driveFileId: file.id,
-        driveFolderId: parentId,
-        lastModified: file.modifiedTime,
-        folderPath: [] as string[],
-      } satisfies StoryWithMeta;
-    })
-  );
+/**
+ * Finds all stories.json files under the root folder,
+ * reads each array, and returns a flat list of StoryWithMeta.
+ */
+export async function fetchStoriesWithMeta(rootFolderId: string): Promise<StoryWithMeta[]> {
+  // Search for all stories.json files under root
+  const storyFiles = await searchStoryFiles(rootFolderId);
 
-  const fetched = stories
-    .filter((r) => r.status === "fulfilled")
-    .map((r) => (r as PromiseFulfilledResult<StoryWithMeta>).value);
+  if (storyFiles.length === 0) return [];
 
-  // Deduplicate by driveFileId
-  const seen = new Set<string>();
-  const deduped = fetched.filter(s => {
-    if (seen.has(s.driveFileId)) return false;
-    seen.add(s.driveFileId);
-    return true;
-  });
-
-  // Batch-fetch unique folder names (one request per unique folder)
-  const uniqueFolderIds = [...new Set(deduped.map(s => s.driveFolderId).filter(Boolean))];
+  // Batch-fetch unique folder names
+  const uniqueFolderIds = [
+    ...new Set(storyFiles.map((f) => f.parents?.[0]).filter(Boolean) as string[]),
+  ];
   const folderNameMap: Record<string, string> = {};
 
   await Promise.all(
     uniqueFolderIds.map(async (folderId) => {
       try {
         const folder = await driveGet<{ id: string; name: string }>(`/files/${folderId}`, {
-          fields: "id,name"
+          fields: "id,name",
         });
         folderNameMap[folderId] = folder.name;
       } catch {
-        folderNameMap[folderId] = folderId; // fallback to ID if fetch fails
+        folderNameMap[folderId] = folderId;
       }
     })
   );
 
-  return deduped.map(s => ({
-    ...s,
-    folderName: folderNameMap[s.driveFolderId] || s.driveFolderId,
-  }));
+  // Read each stories.json and expand into individual story entries
+  const allResults = await Promise.allSettled(
+    storyFiles.map(async (file) => {
+      const folderId = file.parents?.[0] || "";
+      const stories = await readStoriesArray(file.id);
+
+      return stories.map((story) => ({
+        ...story,
+        storiesFileId: file.id,
+        driveFolderId: folderId,
+        folderName: folderNameMap[folderId] || folderId,
+        lastModified: file.modifiedTime,
+        folderPath: [] as string[],
+      } satisfies StoryWithMeta));
+    })
+  );
+
+  // Flatten and deduplicate by story_id
+  const flat: StoryWithMeta[] = [];
+  const seenIds = new Set<string>();
+
+  for (const result of allResults) {
+    if (result.status !== "fulfilled") continue;
+    for (const story of result.value) {
+      if (seenIds.has(story.story_id)) continue;
+      seenIds.add(story.story_id);
+      flat.push(story);
+    }
+  }
+
+  return flat;
+}
+
+// ---------------------------------------------------------------------------
+// Legacy compat / search helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Lists all stories.json files under the root folder.
+ */
+export async function listAllStories(rootFolderId: string): Promise<DriveFile[]> {
+  return searchStoryFiles(rootFolderId);
 }
 
 /**
- * Duplicates a story into the same parent folder with a new ID
+ * Duplicates a story into the same (or different) folder's stories.json
+ * with a new story_id.
  */
 export async function duplicateStory(
-  sourceFileId: string,
-  sourceFolderId: string,
+  storiesFileId: string,
+  sourceStoryId: string,
   newStoryId: string,
-  newFolderName: string
-): Promise<{ storyFolderId: string; storyFileId: string }> {
-  // Read original story
-  const story = await readStory(sourceFileId);
-
-  // Get source folder parent
-  const { getFile } = await import("./drive/folders");
-  const sourceFolder = await getFile(sourceFolderId);
-  const parentId = sourceFolder.parents?.[0] || "";
-
-  // Create new story folder
-  const newFolder = await createFolder(newFolderName, parentId);
-
-  // Upload with new ID
-  const newStory: Story = { ...story, story_id: newStoryId };
-  const blob = new Blob([JSON.stringify(newStory, null, 2)], { type: "application/json" });
-  const newFile = await uploadFile(APP_CONFIG.storyFileName, blob, newFolder.id, "application/json");
-
-  return { storyFolderId: newFolder.id, storyFileId: newFile.id };
+  targetFolderId: string
+): Promise<string> {
+  const original = await readStory(storiesFileId, sourceStoryId);
+  const duplicated: Story = {
+    ...original,
+    story_id: newStoryId,
+    image_ids: [], // Don't duplicate image references
+    num_images: null,
+  };
+  return addStoryToFolder({ folderId: targetFolderId, story: duplicated });
 }
 
 /**
- * Gets all image files inside a story folder
+ * Gets all image files inside a story folder, optionally filtered by storyId
  */
-export async function getStoryImages(storyFolderId: string): Promise<DriveFile[]> {
+export async function getStoryImages(storyFolderId: string, storyId?: string): Promise<DriveFile[]> {
   const files = await listFilesInFolder(storyFolderId);
   return files.filter(
     (f) =>
       f.mimeType.startsWith("image/") &&
-      f.name !== APP_CONFIG.storyFileName
+      f.name !== APP_CONFIG.storyFileName &&
+      (!storyId || f.name.includes(storyId))
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateStory } from "@/hooks/useStories";
 import { uploadFile } from "@/services/drive/files";
@@ -17,7 +17,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { EMPTY_STORY, type Story } from "@/types/story";
-import { generateNumericStoryId } from "@/utils/helpers";
 import { AGE_GROUPS, LANGUAGES, ROUTES } from "@/config/app";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
@@ -29,13 +28,12 @@ interface NamedFile {
 }
 
 const schema = z.object({
-  bangla_story_title: z.string().min(1, "Title is required"),
-  story_id: z.string().min(1, "Story ID is required"),
-  targetFolderId: z.string().min(1, "Please select a target folder"),
-  fileName: z
+  story_id: z
     .string()
-    .min(1, "File name is required")
-    .refine((v) => v.endsWith(".json"), { message: "File name must end with .json" }),
+    .min(1, "Story ID is required")
+    .regex(/^[a-zA-Z0-9_-]+$/, "Only letters, numbers, underscores and hyphens allowed"),
+  targetFolderId: z.string().min(1, "Please select a target folder"),
+  bangla_story_title: z.string().min(1, "Title is required"),
   bangla_book_name: z.string().optional().default(""),
   story_in_bangla: z.string().optional().default(""),
   bangla_writer_name: z.string().optional().default(""),
@@ -62,7 +60,6 @@ export function CreateStoryPage() {
 
   const [activeTab, setActiveTab] = useState("bangla");
   const [namedFiles, setNamedFiles] = useState<NamedFile[]>([]);
-  const [storyId, setStoryId] = useState("");
 
   const {
     register,
@@ -71,13 +68,13 @@ export function CreateStoryPage() {
     watch,
     formState: { errors, isSubmitting },
     reset,
+    getValues,
   } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      bangla_story_title: "",
       story_id: "",
+      bangla_story_title: "",
       targetFolderId: "",
-      fileName: "",
       bangla_book_name: "",
       story_in_bangla: "",
       bangla_writer_name: "",
@@ -94,26 +91,14 @@ export function CreateStoryPage() {
     },
   });
 
-  useEffect(() => {
-    const id = generateNumericStoryId();
-    setStoryId(id);
-    setValue("story_id", id);
-  }, [setValue]);
-
   const watchLang = watch("original_language");
   const watchAge = watch("target_age_group");
   const watchFolderId = watch("targetFolderId");
-  const watchFileName = watch("fileName");
-
-  useEffect(() => {
-    if (storyId && !watchFileName) {
-      setValue("fileName", `${storyId}.json`);
-    }
-  }, [storyId, watchFileName, setValue]);
+  const watchStoryId = watch("story_id");
 
   const buildDefaultImageId = useCallback(
-    (idx: number) => `${storyId}_img_${String(idx + 1).padStart(2, "0")}`,
-    [storyId]
+    (idx: number) => `${watchStoryId || "story"}_img_${String(idx + 1).padStart(2, "0")}`,
+    [watchStoryId]
   );
 
   const handleImageAdd = (files: File[]) => {
@@ -137,16 +122,11 @@ export function CreateStoryPage() {
     setNamedFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const handleFileNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\.json$/, "").trim();
-    setValue("fileName", val ? `${val}.json` : "");
-  };
-
   const handleClose = () => {
     router.back();
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: FormData) => {
     if (!rootFolderId) return;
 
     try {
@@ -175,38 +155,32 @@ export function CreateStoryPage() {
         target_age_group: data.target_age_group || "",
       };
 
-      const result = await createStoryMutation.mutateAsync({
+      // Add to stories.json array in the selected folder
+      const storiesFileId = await createStoryMutation.mutateAsync({
+        folderId: data.targetFolderId,
         rootFolderId,
-        targetFolderId: data.targetFolderId,
-        fileName: data.fileName,
         story: storyData,
       });
 
+      // Upload image files to the same folder
       if (namedFiles.length > 0) {
         for (const nf of namedFiles) {
           const ext = nf.file.name.split(".").pop()?.toLowerCase() || "jpg";
           const driveFileName = `${nf.imageId}.${ext}`;
-          await uploadFile(driveFileName, nf.file, result.storyFolderId, nf.file.type);
+          await uploadFile(driveFileName, nf.file, data.targetFolderId, nf.file.type);
         }
+        toast.success(`${namedFiles.length} image(s) uploaded.`);
       }
 
-      toast.success("Story created successfully!");
-      
-      // Reset form and keep target folder for convenience
+      // Reset form, keep folder selection for convenience
+      const savedFolderId = data.targetFolderId;
       reset();
+      setValue("targetFolderId", savedFolderId);
       setNamedFiles([]);
       setActiveTab("bangla");
-      
-      const newId = generateNumericStoryId();
-      setStoryId(newId);
-      setValue("story_id", newId);
-      setValue("fileName", `${newId}.json`);
-      if (data.targetFolderId) {
-        setValue("targetFolderId", data.targetFolderId);
-      }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error("Failed to create story");
+      toast.error(err?.message || "Failed to create story");
     }
   };
 
@@ -225,8 +199,31 @@ export function CreateStoryPage() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="bg-card rounded-2xl border shadow-sm overflow-hidden flex flex-col">
+          {/* Top config: Story ID + Folder */}
           <div className="bg-muted/30 px-6 py-4 border-b space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              {/* Story ID — user provides */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Story ID *
+                </Label>
+                <Input
+                  {...register("story_id")}
+                  placeholder="e.g. story_0001 or bangla_lalkambal"
+                  className="font-mono rounded-xl text-sm bg-background"
+                />
+                {errors.story_id && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {errors.story_id.message}
+                  </p>
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                  Only letters, numbers, underscores, hyphens. Must be unique.
+                </p>
+              </div>
+
+              {/* Target Folder */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Target Folder *
@@ -241,41 +238,14 @@ export function CreateStoryPage() {
                     {errors.targetFolderId.message}
                   </p>
                 )}
+                <p className="text-[10px] text-muted-foreground">
+                  Story will be added to <code>stories.json</code> in this folder.
+                </p>
               </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  File Name * (.json)
-                </Label>
-                <div className="relative">
-                  <Input
-                    value={(watchFileName || "").replace(/\.json$/, "")}
-                    onChange={handleFileNameChange}
-                    placeholder={`${storyId}`}
-                    className="pr-14 rounded-xl text-sm font-mono bg-background"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
-                    .json
-                  </span>
-                </div>
-                {errors.fileName && (
-                  <p className="text-xs text-destructive flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {errors.fileName.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Story ID:</Label>
-              <code className="text-xs font-mono bg-background border px-2.5 py-1 rounded-lg text-foreground">
-                {storyId}
-              </code>
-              <span className="text-[10px] text-muted-foreground">(auto-generated, unique)</span>
             </div>
           </div>
 
+          {/* Tabs */}
           <div className="flex-1">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid grid-cols-4 w-full rounded-none border-b bg-muted/20">
@@ -295,6 +265,7 @@ export function CreateStoryPage() {
               </TabsList>
 
               <div className="min-h-[400px]">
+                {/* Bangla Tab */}
                 <TabsContent value="bangla" className="p-6 space-y-4 m-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-1.5 col-span-2">
@@ -337,6 +308,7 @@ export function CreateStoryPage() {
                   </div>
                 </TabsContent>
 
+                {/* Original Tab */}
                 <TabsContent value="original" className="p-6 space-y-4 m-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-1.5">
@@ -377,6 +349,7 @@ export function CreateStoryPage() {
                   </div>
                 </TabsContent>
 
+                {/* Metadata Tab */}
                 <TabsContent value="metadata" className="p-6 space-y-4 m-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-1.5">
@@ -413,17 +386,16 @@ export function CreateStoryPage() {
                   </div>
                 </TabsContent>
 
+                {/* Images Tab */}
                 <TabsContent value="images" className="p-6 space-y-4 m-0">
                   <ImageDropzone onUpload={handleImageAdd} />
-
                   {namedFiles.length > 0 && (
                     <div className="space-y-3 mt-6">
                       <Label className="text-sm font-semibold uppercase text-muted-foreground">
                         Attached Images — Set Image ID for each
                       </Label>
                       <p className="text-sm text-muted-foreground">
-                        The Image ID becomes the Drive filename + entry in <code>image_ids</code> array.
-                        e.g. <code className="bg-muted px-1 rounded">{storyId}_img_01</code> → saved as <code className="bg-muted px-1 rounded">{storyId}_img_01.jpg</code>
+                        The Image ID will be saved in <code>image_ids</code> and the file will be uploaded to the same folder as <code>stories.json</code>.
                       </p>
                       <div className="space-y-3">
                         {namedFiles.map((nf, idx) => {
@@ -469,6 +441,7 @@ export function CreateStoryPage() {
             </Tabs>
           </div>
 
+          {/* Footer */}
           <div className="px-6 py-4 border-t bg-muted/10 flex items-center justify-end gap-3 mt-auto">
             <Button type="button" variant="outline" onClick={handleClose} className="rounded-xl px-6">
               Cancel

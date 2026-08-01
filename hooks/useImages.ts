@@ -9,10 +9,10 @@ import toast from "react-hot-toast";
 
 export const IMAGES_QUERY_KEY = "images";
 
-export function useStoryImages(storyFolderId: string | null) {
+export function useStoryImages(storyFolderId: string | null, storyId?: string) {
   return useQuery({
-    queryKey: [IMAGES_QUERY_KEY, storyFolderId],
-    queryFn: () => getStoryImages(storyFolderId!),
+    queryKey: [IMAGES_QUERY_KEY, storyFolderId, storyId],
+    queryFn: () => getStoryImages(storyFolderId!, storyId),
     enabled: !!storyFolderId,
     staleTime: 1000 * 60 * 5,
   });

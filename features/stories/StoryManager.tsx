@@ -34,7 +34,7 @@ export function StoryManager() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [previewStory, setPreviewStory] = useState<StoryWithMeta | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StoryWithMeta | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Search & Filter hook
@@ -53,20 +53,25 @@ export function StoryManager() {
 
   const handleDuplicate = async (story: StoryWithMeta) => {
     const newId = generateNumericStoryId();
-    const newFolderName = `story_${newId}`;
-
     await duplicateStoryMutation.mutateAsync({
-      sourceFileId: story.driveFileId,
-      sourceFolderId: story.driveFolderId,
+      storiesFileId: story.storiesFileId,
+      sourceStoryId: story.story_id,
       newStoryId: newId,
-      newFolderName: newFolderName,
+      targetFolderId: story.driveFolderId,
+      rootFolderId: rootFolderId!,
     });
   };
 
   const handleDeleteConfirm = async () => {
-    if (!deleteFolderId) return;
-    await deleteStoryMutation.mutateAsync(deleteFolderId);
+    if (!deleteTarget || !rootFolderId) return;
+    await deleteStoryMutation.mutateAsync({
+      storiesFileId: deleteTarget.storiesFileId,
+      storyId: deleteTarget.story_id,
+      folderId: deleteTarget.driveFolderId,
+      rootFolderId,
+    });
     setDeleteOpen(false);
+    setDeleteTarget(null);
   };
 
   const handleImportJSON = async (importedStory: any) => {
@@ -81,9 +86,7 @@ export function StoryManager() {
 
     await createStoryMutation.mutateAsync({
       rootFolderId,
-      country: importedStory.origin_country || "Global",
-      collection: importedStory.source_tradition || "Folk Tales",
-      storyFolderName: importedStory.story_id || generateNumericStoryId(),
+      folderId: rootFolderId, // Imports go to the root folder's stories.json by default
       story: importedStory,
     });
   };
@@ -204,8 +207,8 @@ export function StoryManager() {
               <StoryCard
                 key={story.story_id}
                 story={story}
-                onDelete={(folderId) => {
-                  setDeleteFolderId(folderId);
+                onDelete={(s) => {
+                  setDeleteTarget(s);
                   setDeleteOpen(true);
                 }}
                 onDuplicate={handleDuplicate}
@@ -219,8 +222,8 @@ export function StoryManager() {
         ) : (
           <StoryTable
             stories={results}
-            onDelete={(folderId) => {
-              setDeleteFolderId(folderId);
+            onDelete={(s) => {
+              setDeleteTarget(s);
               setDeleteOpen(true);
             }}
             onDuplicate={handleDuplicate}

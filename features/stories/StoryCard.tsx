@@ -13,7 +13,7 @@ import { useState, useEffect } from "react";
 
 interface StoryCardProps {
   story: StoryWithMeta;
-  onDelete: (storyFileId: string) => void;
+  onDelete: (story: StoryWithMeta) => void;
   onDuplicate: (story: StoryWithMeta) => void;
   onPreview: (story: StoryWithMeta) => void;
 }
@@ -110,7 +110,7 @@ export function StoryCard({
 
           <div className="flex items-center gap-2 pt-1">
             <Link
-              href={ROUTES.story(story.driveFileId)}
+              href={ROUTES.story(story.storiesFileId, story.story_id)}
               className="flex-1"
             >
               <Button size="sm" className="w-full rounded-xl" variant="outline">
@@ -122,7 +122,7 @@ export function StoryCard({
               variant="ghost"
               size="icon"
               className="w-9 h-9 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => onDelete(story.driveFileId)}
+              onClick={() => onDelete(story)}
             >
               <Trash2 className="w-4 h-4" />
             </Button>

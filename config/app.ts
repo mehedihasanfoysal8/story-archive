@@ -5,7 +5,7 @@ export const APP_CONFIG = {
   rootFolderName: "Stories",
   defaultRootFolderId: "16LyBTRX6vJ4Lb3ITq8l9_bXl-cT8MRc5",
   defaultDriveLink: "https://drive.google.com/drive/folders/16LyBTRX6vJ4Lb3ITq8l9_bXl-cT8MRc5?usp=sharing",
-  storyFileName: "story.json",
+  storyFileName: "stories.json",
   coverImageName: "cover.jpg",
   imagePrefix: "image",
   maxImageSize: 10 * 1024 * 1024, // 10MB
@@ -39,7 +39,8 @@ export const ROUTES = {
   dashboard: "/dashboard",
   stories: "/stories",
   newStory: "/stories/new",
-  story: (id: string) => `/stories/${id}`,
+  story: (storiesFileId: string, storyId?: string) => 
+    storyId ? `/stories/${storiesFileId}__${storyId}` : `/stories/${storiesFileId}`,
   storyPreview: (id: string) => `/stories/${id}/preview`,
   folders: "/folders",
   images: "/images",

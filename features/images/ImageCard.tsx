@@ -7,7 +7,7 @@ import { getImageUrl } from "@/services/images";
 import { useAuth } from "@/hooks/useAuth";
 import { formatBytes, formatDate } from "@/utils/helpers";
 import type { DriveFile } from "@/types/drive";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface ImageCardProps {
   image: DriveFile;
@@ -23,18 +23,72 @@ export function ImageCard({
   onPreview,
 }: ImageCardProps) {
   const { accessToken } = useAuth();
-  const url = accessToken ? getImageUrl(image.id, accessToken) : "";
+  const [useFallback, setUseFallback] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  const primaryUrl = image.thumbnailLink
+    ? image.thumbnailLink.replace(/=s\d+/, '=s1000')
+    : null;
+    
+  // Use primary URL if available and fallback hasn't been triggered
+  const url = (!useFallback && primaryUrl) ? primaryUrl : (objectUrl || "");
+
+  // Fetch Blob fallback
+  const fetchFallback = () => {
+    if (!accessToken) {
+      setImageError(true);
+      return;
+    }
+    setUseFallback(true);
+    fetch(`https://www.googleapis.com/drive/v3/files/${image.id}?alt=media`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch image blob");
+        return res.blob();
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        setObjectUrl(blobUrl);
+      })
+      .catch(() => setImageError(true));
+  };
+
+  useEffect(() => {
+    setUseFallback(false);
+    setImageError(false);
+    
+    // If there's no primary URL available (e.g. newly uploaded image), trigger fallback immediately
+    if (!primaryUrl) {
+      fetchFallback();
+    }
+    
+    // Cleanup blob url when image changes or unmounts
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [image.id, primaryUrl, accessToken]); // re-run if these change
+
+  const handleError = () => {
+    if (!useFallback && primaryUrl) {
+      fetchFallback();
+    } else {
+      setImageError(true);
+    }
+  };
 
   return (
     <div className="border rounded-2xl bg-card shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group">
       {/* Visual display area */}
       <div className="relative aspect-square bg-muted flex items-center justify-center border-b overflow-hidden">
-        {url && !imageError ? (
+        {(!url && !imageError) ? (
+          <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+        ) : (url && !imageError) ? (
           <img
             src={url}
             alt={image.name}
-            onError={() => setImageError(true)}
+            onError={handleError}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
           />
@@ -47,6 +101,7 @@ export function ImageCard({
         {/* Hover overlay triggers */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
           <Button
+            type="button"
             variant="secondary"
             size="icon"
             className="w-9 h-9 rounded-lg"
@@ -56,6 +111,7 @@ export function ImageCard({
             <ZoomIn className="w-4 h-4" />
           </Button>
           <Button
+            type="button"
             variant="secondary"
             size="icon"
             className="w-9 h-9 rounded-lg"
@@ -65,6 +121,7 @@ export function ImageCard({
             <Edit2 className="w-4 h-4" />
           </Button>
           <Button
+            type="button"
             variant="destructive"
             size="icon"
             className="w-9 h-9 rounded-lg"

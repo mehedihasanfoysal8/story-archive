@@ -26,7 +26,7 @@ export function SearchPage() {
   // Local state for preview/delete operations
   const [previewStory, setPreviewStory] = useState<StoryWithMeta | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
+  const [storyToDelete, setStoryToDelete] = useState<StoryWithMeta | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Instantly search using client-side hook (Fuse.js)
@@ -44,18 +44,23 @@ export function SearchPage() {
 
   const handleDuplicate = async (story: StoryWithMeta) => {
     const newId = `${story.story_id}_copy`;
-    const newFolderName = `${story.driveFolderId}_copy`;
     await duplicateStoryMutation.mutateAsync({
-      sourceFileId: story.driveFileId,
-      sourceFolderId: story.driveFolderId,
+      storiesFileId: story.storiesFileId,
+      sourceStoryId: story.story_id,
       newStoryId: newId,
-      newFolderName: newFolderName,
+      targetFolderId: story.driveFolderId,
+      rootFolderId: rootFolderId!,
     });
   };
 
   const handleDeleteConfirm = async () => {
-    if (!deleteFolderId) return;
-    await deleteStoryMutation.mutateAsync(deleteFolderId);
+    if (!storyToDelete) return;
+    await deleteStoryMutation.mutateAsync({
+      storiesFileId: storyToDelete.storiesFileId,
+      storyId: storyToDelete.story_id,
+      folderId: storyToDelete.driveFolderId,
+      rootFolderId: rootFolderId!,
+    });
     setDeleteOpen(false);
   };
 
@@ -186,8 +191,8 @@ export function SearchPage() {
                   <StoryCard
                     key={story.story_id}
                     story={story}
-                    onDelete={(folderId) => {
-                      setDeleteFolderId(folderId);
+                    onDelete={() => {
+                      setStoryToDelete(story);
                       setDeleteOpen(true);
                     }}
                     onDuplicate={handleDuplicate}
@@ -214,8 +219,8 @@ export function SearchPage() {
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Delete Story Archive"
-        description="Are you sure you want to delete this story? This will permanently delete the entire story folder, including the story.json file and all associated image assets from your Google Drive."
+        title="Delete Story"
+        description="Are you sure you want to delete this story? This will permanently remove it from the file and delete associated images."
         confirmLabel="Delete Permanently"
         variant="destructive"
         onConfirm={handleDeleteConfirm}

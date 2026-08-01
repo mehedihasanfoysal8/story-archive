@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { readStory, updateStory } from "@/services/stories";
-import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useMutation } from "@tanstack/react-query";
+import { readStoriesArray, updateStory } from "@/services/stories";
+import { driveGet } from "@/services/drive/client";
 import { useGlobalShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { FormEditor } from "./FormEditor";
 import { JsonEditor } from "./JsonEditor";
@@ -17,85 +17,92 @@ import toast from "react-hot-toast";
 import type { Story } from "@/types/story";
 
 interface StoryEditorProps {
-  fileId: string;
+  /** URL-encoded param: "{storiesFileId}__{storyId}" */
+  encodedId: string;
 }
 
-export function StoryEditor({ fileId }: StoryEditorProps) {
+export function StoryEditor({ encodedId }: StoryEditorProps) {
+  // Parse the encoded ID
+  const separatorIdx = encodedId.indexOf("__");
+  const storiesFileId = separatorIdx !== -1 ? encodedId.slice(0, separatorIdx) : encodedId;
+  const storyId = separatorIdx !== -1 ? encodedId.slice(separatorIdx + 2) : "";
+
   const [mode, setMode] = useState<"form" | "json">("form");
   const [localStory, setLocalStory] = useState<Story | null>(null);
+  const [folderId, setFolderId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Query story from Drive
-  const { data: initialStory, isLoading, error, refetch } = useQuery({
-    queryKey: ["stories", "single", fileId],
-    queryFn: () => readStory(fileId),
-    staleTime: 1000 * 60,
-  });
-
-  // Set local story once loaded
+  // Load story on mount
   useEffect(() => {
-    if (initialStory && !localStory) {
-      setLocalStory(initialStory);
+    if (!storiesFileId) {
+      setLoadError("Invalid story URL.");
+      setIsLoading(false);
+      return;
     }
-  }, [initialStory]); // eslint-disable-line react-hooks/exhaustive-deps
+    setIsLoading(true);
 
-  // Undo/Redo
-  const {
-    value: undoStory,
-    set: setUndoStory,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-  } = useUndoRedo<Story | null>(null);
+    const load = async () => {
+      const stories = await readStoriesArray(storiesFileId);
+      if (stories.length === 0) throw new Error("No stories found in this file.");
 
-  useEffect(() => {
-    if (initialStory && !undoStory) {
-      setUndoStory(initialStory);
-    }
-  }, [initialStory]); // eslint-disable-line react-hooks/exhaustive-deps
+      // If storyId is in URL, find that specific story
+      // Otherwise (legacy single-file URL), use the first story
+      const found = storyId
+        ? stories.find((s) => s.story_id === storyId)
+        : stories[0];
 
-  // Mutation to save
+      if (!found) throw new Error(`Story "${storyId}" not found in file.`);
+
+      // Also get folderId so we can manage images
+      const fileMeta = await driveGet<{ parents: string[] }>(`/files/${storiesFileId}?fields=parents`);
+      const parentFolderId = fileMeta.parents?.[0] || null;
+
+      return { story: found, folderId: parentFolderId };
+    };
+
+    load()
+      .then((res) => {
+        setLocalStory(res.story);
+        setFolderId(res.folderId);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        setLoadError(err.message || "Failed to load story.");
+        setIsLoading(false);
+      });
+  }, [storiesFileId, storyId]);
+
+  // Save mutation
   const saveMutation = useMutation({
-    mutationFn: (updated: Story) => updateStory(fileId, updated),
+    mutationFn: (updated: Story) => updateStory(storiesFileId, updated),
     onSuccess: () => {
       setIsDirty(false);
-      toast.success("Saved to Google Drive");
+      toast.success("Story saved to Google Drive!");
     },
     onError: (err: Error) => {
       toast.error(`Save failed: ${err.message}`);
     },
   });
 
-  // Debounced autosave ref (unused now — manual save only)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Handle changes from sub-editors — just update local state, no autosave
+  // Handle local form changes — no autosave
   const handleLocalChange = useCallback((updated: Story) => {
     setLocalStory(updated);
-    setUndoStory(updated);
     setIsDirty(true);
-  }, [setUndoStory]);
-
-  // Undo/Redo syncs local story
-  const handleUndo = useCallback(() => {
-    undo();
-    if (undoStory) setLocalStory(undoStory);
-  }, [undo, undoStory]);
-
-  const handleRedo = useCallback(() => {
-    redo();
-    if (undoStory) setLocalStory(undoStory);
-  }, [redo, undoStory]);
+  }, []);
 
   // Manual save
   const handleManualSave = useCallback(() => {
     if (localStory) {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveMutation.mutate(localStory);
     }
   }, [localStory, saveMutation]);
 
-  // Cleanup (kept for safety)
+  // Cleanup
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -103,18 +110,21 @@ export function StoryEditor({ fileId }: StoryEditorProps) {
   }, []);
 
   // Global shortcuts
-  useGlobalShortcuts({
-    onSave: handleManualSave,
-    onUndo: handleUndo,
-    onRedo: handleRedo,
-  });
+  useGlobalShortcuts({ onSave: handleManualSave });
 
   // Loading skeleton
   if (isLoading) {
     return (
       <PageLayout title="Story Editor">
-        <div className="p-6 space-y-6 max-w-4xl mx-auto">
-          <div className="h-6 w-32 bg-muted animate-pulse rounded" />
+        <div className="border-b bg-card py-4 px-6 flex items-center gap-3">
+          <Link href={ROUTES.stories}>
+            <Button variant="ghost" size="icon" className="w-9 h-9 rounded-xl">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <span className="text-sm text-muted-foreground animate-pulse">Loading story...</span>
+        </div>
+        <div className="p-6 space-y-4 max-w-4xl mx-auto">
           <div className="h-10 w-full bg-muted animate-pulse rounded-xl" />
           <div className="h-96 w-full bg-muted animate-pulse rounded-2xl" />
         </div>
@@ -122,8 +132,8 @@ export function StoryEditor({ fileId }: StoryEditorProps) {
     );
   }
 
-  // Error state — still shows navigation!
-  if (error) {
+  // Error state
+  if (loadError || !localStory) {
     return (
       <PageLayout title="Story Editor">
         <div className="border-b bg-card py-4 px-6 flex items-center gap-3">
@@ -136,34 +146,7 @@ export function StoryEditor({ fileId }: StoryEditorProps) {
         </div>
         <div className="p-12 text-center max-w-md mx-auto space-y-4">
           <h2 className="text-xl font-bold text-destructive">Failed to Load Story</h2>
-          <p className="text-sm text-muted-foreground">
-            {error?.message || "Verify your Google permissions or try refreshing."}
-          </p>
-          <Button onClick={() => refetch()} className="rounded-xl">
-            Retry Load
-          </Button>
-        </div>
-      </PageLayout>
-    );
-  }
-
-  // Use localStory for editing; fall back to initialStory while loading
-  const story = localStory || initialStory;
-
-  if (!story) {
-    return (
-      <PageLayout title="Story Editor">
-        <div className="border-b bg-card py-4 px-6 flex items-center gap-3">
-          <Link href={ROUTES.stories}>
-            <Button variant="ghost" size="icon" className="w-9 h-9 rounded-xl">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <span className="font-semibold text-muted-foreground">Back to Stories</span>
-        </div>
-        <div className="p-12 text-center max-w-md mx-auto space-y-4">
-          <h2 className="text-xl font-bold">Story not found</h2>
-          <p className="text-sm text-muted-foreground">This story could not be loaded from Drive.</p>
+          <p className="text-sm text-muted-foreground">{loadError}</p>
         </div>
       </PageLayout>
     );
@@ -181,10 +164,10 @@ export function StoryEditor({ fileId }: StoryEditorProps) {
           </Link>
           <div>
             <h2 className="font-bold text-base line-clamp-1">
-              {story.bangla_story_title || "Untitled Story"}
+              {localStory.bangla_story_title || "Untitled Story"}
             </h2>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-              <span>{story.story_id}</span>
+              <span className="font-mono">{localStory.story_id}</span>
               {saveMutation.isPending ? (
                 <span className="text-primary flex items-center gap-1 animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Saving...
@@ -201,16 +184,6 @@ export function StoryEditor({ fileId }: StoryEditorProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Undo/Redo */}
-          <div className="flex items-center gap-1 mr-2 border-r pr-2">
-            <Button variant="ghost" size="icon" className="w-8 h-8" onClick={handleUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
-              <Undo className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="w-8 h-8" onClick={handleRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">
-              <Redo className="w-4 h-4" />
-            </Button>
-          </div>
-
           <EditorModeSwitcher mode={mode} onChange={setMode} />
 
           <Link href={ROUTES.images}>
@@ -224,7 +197,9 @@ export function StoryEditor({ fileId }: StoryEditorProps) {
             size="sm"
             onClick={handleManualSave}
             disabled={saveMutation.isPending || !isDirty}
-            className={`rounded-xl shadow-md transition-all ${isDirty ? "bg-primary text-primary-foreground animate-pulse-subtle" : "opacity-70"}`}
+            className={`rounded-xl shadow-md transition-all ${
+              isDirty ? "bg-primary text-primary-foreground" : "opacity-60"
+            }`}
             id="save-story-btn"
           >
             <Save className="w-4 h-4 mr-2" />
@@ -236,9 +211,9 @@ export function StoryEditor({ fileId }: StoryEditorProps) {
       {/* Editor Workspace */}
       <div className="p-6">
         {mode === "form" ? (
-          <FormEditor key={fileId} value={story} onChange={handleLocalChange} />
+          <FormEditor key={storyId} value={localStory} onChange={handleLocalChange} folderId={folderId} />
         ) : (
-          <JsonEditor value={story} onChange={handleLocalChange} />
+          <JsonEditor value={localStory} onChange={handleLocalChange} />
         )}
       </div>
     </PageLayout>

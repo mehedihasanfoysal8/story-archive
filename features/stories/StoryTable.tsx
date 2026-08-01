@@ -11,7 +11,7 @@ import { ROUTES } from "@/config/app";
 
 interface StoryTableProps {
   stories: StoryWithMeta[];
-  onDelete: (storyFolderId: string) => void;
+  onDelete: (story: StoryWithMeta) => void;
   onDuplicate: (story: StoryWithMeta) => void;
   onPreview: (story: StoryWithMeta) => void;
 }
@@ -107,7 +107,7 @@ export function StoryTable({
                   >
                     <FileText className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
                   </Button>
-                  <Link href={ROUTES.story(story.driveFileId)}>
+                  <Link href={ROUTES.story(story.storiesFileId, story.story_id)}>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -121,7 +121,7 @@ export function StoryTable({
                     variant="ghost"
                     size="icon"
                     className="w-7 h-7 rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => onDelete(story.driveFileId)}
+                    onClick={() => onDelete(story)}
                     title="Delete"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

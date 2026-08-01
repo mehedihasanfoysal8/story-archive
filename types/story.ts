@@ -23,7 +23,8 @@ export interface Story {
 export type StoryFormData = Omit<Story, "story_id" | "image_ids" | "num_images">;
 
 export interface StoryWithMeta extends Story {
-  driveFileId: string;
+  /** Drive file ID of the stories.json that contains this story */
+  storiesFileId: string;
   driveFolderId: string;
   folderName?: string;
   coverImageId?: string;

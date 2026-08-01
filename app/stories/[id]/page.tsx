@@ -10,9 +10,10 @@ interface PageProps {
 
 export default function StoryEditorPage({ params }: PageProps) {
   const resolvedParams = use(params);
+  // id = "{storiesFileId}__{storyId}"
   return (
     <AuthGuard>
-      <StoryEditor fileId={resolvedParams.id} />
+      <StoryEditor encodedId={decodeURIComponent(resolvedParams.id)} />
     </AuthGuard>
   );
 }

@@ -25,10 +25,13 @@ export function ImageManager() {
   // Load all stories so we can select which story to edit images for
   const { data: stories = [], isLoading: loadingStories } = useStories(rootFolderId);
 
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+
+  const selectedStory = stories.find((s) => s.story_id === selectedStoryId);
+  const selectedFolderId = selectedStory?.driveFolderId || null;
 
   // Queries for chosen story folder
-  const { data: images = [], isLoading: loadingImages, refetch } = useStoryImages(selectedFolderId);
+  const { data: images = [], isLoading: loadingImages, refetch } = useStoryImages(selectedFolderId, selectedStoryId || undefined);
   const { mutateAsync: uploadImagesMut, progress, isPending: uploading } = useUploadImages(selectedFolderId || "");
   const deleteImageMutation = useDeleteImage(selectedFolderId || "");
 
@@ -73,8 +76,7 @@ export function ImageManager() {
     }
   };
 
-  const selectedStory = stories.find((s) => s.driveFolderId === selectedFolderId);
-
+  // selectedStory is defined above
   return (
     <PageLayout title="Image Manager">
       <div className="p-6 space-y-6">
@@ -88,16 +90,16 @@ export function ImageManager() {
               <div className="h-9 w-64 bg-muted rounded animate-pulse" />
             ) : (
               <Select
-                value={selectedFolderId || "NONE"}
-                onValueChange={(val) => setSelectedFolderId(val === "NONE" ? null : val)}
+                value={selectedStoryId || "NONE"}
+                onValueChange={(val) => setSelectedStoryId(val === "NONE" ? null : val)}
               >
                 <SelectTrigger className="w-[320px] rounded-xl">
-                  <SelectValue placeholder="Select a story folder..." />
+                  <SelectValue placeholder="Select a story..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
                   <SelectItem value="NONE">Select a story...</SelectItem>
                   {stories.map((story) => (
-                    <SelectItem key={story.driveFolderId} value={story.driveFolderId}>
+                    <SelectItem key={story.story_id} value={story.story_id}>
                       {story.bangla_story_title || story.story_id}
                     </SelectItem>
                   ))}
@@ -125,32 +127,11 @@ export function ImageManager() {
             <ImageIcon className="w-12 h-12 text-muted-foreground/50 mb-4 stroke-[1.5]" />
             <p className="font-semibold text-base">No Story Selected</p>
             <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-              Please select an active story from the workspace selector above to upload and manage its images.
+              Please select an active story from the workspace selector above to view its images.
             </p>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Upload Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <ImageDropzone onUpload={handleUpload} disabled={uploading} />
-              </div>
-              <div>
-                <div className="border rounded-2xl p-5 bg-card shadow-sm h-full space-y-4">
-                  <h4 className="font-semibold text-sm flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-primary" />
-                    Upload Status
-                  </h4>
-                  {progress.length > 0 ? (
-                    <MultiFileProgress files={progress} />
-                  ) : (
-                    <p className="text-xs text-muted-foreground pt-4 text-center">
-                      Ready for files. Drop them in the panel or click to upload.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
 
             {/* Images Grid */}
             <div className="space-y-4">

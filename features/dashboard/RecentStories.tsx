@@ -45,7 +45,7 @@ export function RecentStories({ stories }: RecentStoriesProps) {
             </div>
             <div className="flex-1 min-w-0">
               <Link
-                href={ROUTES.story(story.driveFileId)}
+                href={ROUTES.story(story.storiesFileId, story.story_id)}
                 className="font-medium text-sm hover:underline block truncate hover:text-primary transition-colors"
               >
                 {story.bangla_story_title || "Untitled Story"}
