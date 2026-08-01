@@ -22,7 +22,7 @@ interface StoryImageManagerProps {
 
 export function StoryImageManager({ folderId, storyId }: StoryImageManagerProps) {
   const { data: images = [], isLoading, refetch } = useStoryImages(folderId, storyId);
-  const { mutateAsync: uploadImagesMut, progress, isPending: uploading } = useUploadImages(folderId);
+  const { mutateAsync: uploadImagesMut, progress, isPending: uploading } = useUploadImages(folderId, storyId);
   const deleteImageMutation = useDeleteImage(folderId);
 
   // Modals

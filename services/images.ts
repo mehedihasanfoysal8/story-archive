@@ -2,9 +2,12 @@ import { uploadFile, deleteFile } from "./drive/files";
 import { APP_CONFIG, SUPPORTED_IMAGE_TYPES } from "@/config/app";
 import type { DriveFile, DriveUploadProgress } from "@/types/drive";
 
+import { getStoryImages, syncFolderImages } from "./stories";
+
 export interface ImageUploadOptions {
   files: File[];
   storyFolderId: string;
+  storyId?: string;
   onProgress?: (progress: DriveUploadProgress[]) => void;
 }
 
@@ -25,10 +28,11 @@ export function validateImage(file: File): { valid: boolean; error?: string } {
 }
 
 /**
- * Generates the image filename for a given index (e.g. image01.jpg)
+ * Generates the image filename for a given index (e.g. story_0001_img_01.jpg or image01.jpg)
  */
-export function generateImageName(index: number, ext: string = "jpg"): string {
-  return `${APP_CONFIG.imagePrefix}${String(index).padStart(2, "0")}.${ext}`;
+export function generateImageName(index: number, ext: string = "jpg", storyId?: string): string {
+  const prefix = storyId ? `${storyId}_img_` : APP_CONFIG.imagePrefix;
+  return `${prefix}${String(index).padStart(2, "0")}.${ext}`;
 }
 
 /**
@@ -46,7 +50,16 @@ export function getExtension(file: File): string {
 export async function uploadImages(
   options: ImageUploadOptions
 ): Promise<DriveFile[]> {
-  const { files, storyFolderId, onProgress } = options;
+  const { files, storyFolderId, storyId, onProgress } = options;
+
+  // Determine starting index by counting existing images
+  let startIndex = 0;
+  try {
+    const existingImages = await getStoryImages(storyFolderId, storyId);
+    startIndex = existingImages.length;
+  } catch (err) {
+    console.warn("Failed to get existing images for index offset:", err);
+  }
 
   const progress: DriveUploadProgress[] = files.map((f) => ({
     fileName: f.name,
@@ -63,19 +76,22 @@ export async function uploadImages(
     const batch = files.slice(i, i + concurrency);
     const batchResults = await Promise.allSettled(
       batch.map(async (file, batchIdx) => {
-        const idx = i + batchIdx;
-        progress[idx] = { ...progress[idx], status: "uploading", progress: 10 };
+        const fileIdxInBatch = i + batchIdx;
+        const nameIdx = startIndex + fileIdxInBatch + 1; // start index from 1 instead of 0 for non-cover images
+        progress[fileIdxInBatch] = { ...progress[fileIdxInBatch], status: "uploading", progress: 10 };
         onProgress?.([...progress]);
 
         const ext = getExtension(file);
-        const isCover = idx === 0;
+        
+        // If storyId is not provided (e.g. general folder upload), the first image is the cover
+        const isCover = !storyId && (nameIdx === 1);
         const name = isCover
           ? APP_CONFIG.coverImageName
-          : generateImageName(idx, ext);
+          : generateImageName(nameIdx, ext, storyId);
 
         const uploaded = await uploadFile(name, file, storyFolderId, file.type);
 
-        progress[idx] = { ...progress[idx], status: "complete", progress: 100, fileId: uploaded.id };
+        progress[fileIdxInBatch] = { ...progress[fileIdxInBatch], status: "complete", progress: 100, fileId: uploaded.id };
         onProgress?.([...progress]);
         return uploaded;
       })
@@ -97,6 +113,13 @@ export async function uploadImages(
     }
   }
 
+  // Sync JSON file in the background (no await needed for UI, but let's await to be safe)
+  try {
+    await syncFolderImages(storyFolderId);
+  } catch (err) {
+    console.error("Failed to sync folder images after upload", err);
+  }
+
   return results;
 }
 
@@ -113,8 +136,15 @@ export async function uploadCoverImage(
 /**
  * Deletes an image from Drive
  */
-export async function deleteImage(fileId: string): Promise<void> {
-  return deleteFile(fileId);
+export async function deleteImage(fileId: string, folderId?: string): Promise<void> {
+  await deleteFile(fileId);
+  if (folderId) {
+    try {
+      await syncFolderImages(folderId);
+    } catch (err) {
+      console.error("Failed to sync folder images after delete", err);
+    }
+  }
 }
 
 /**

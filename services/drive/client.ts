@@ -76,6 +76,11 @@ export async function driveGet<T>(path: string, params?: Record<string, string>)
   return withRetry(async () => {
     const headers = await getAuthHeaders();
     const url = new URL(`${GOOGLE_CONFIG.driveApiBase}${path}`);
+    
+    // Always include these parameters to support shared public folders not in "My Drive"
+    url.searchParams.set("includeItemsFromAllDrives", "true");
+    url.searchParams.set("supportsAllDrives", "true");
+    
     if (params) {
       Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     }
@@ -87,10 +92,15 @@ export async function driveGet<T>(path: string, params?: Record<string, string>)
 /**
  * Core POST request to Drive API
  */
-export async function drivePost<T>(path: string, body: unknown): Promise<T> {
+export async function drivePost<T>(path: string, body: unknown, params?: Record<string, string>): Promise<T> {
   return withRetry(async () => {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${GOOGLE_CONFIG.driveApiBase}${path}`, {
+    const url = new URL(`${GOOGLE_CONFIG.driveApiBase}${path}`);
+    url.searchParams.set("supportsAllDrives", "true");
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    }
+    const response = await fetch(url.toString(), {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -102,10 +112,15 @@ export async function drivePost<T>(path: string, body: unknown): Promise<T> {
 /**
  * Core PATCH request to Drive API
  */
-export async function drivePatch<T>(path: string, body: unknown): Promise<T> {
+export async function drivePatch<T>(path: string, body: unknown, params?: Record<string, string>): Promise<T> {
   return withRetry(async () => {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${GOOGLE_CONFIG.driveApiBase}${path}`, {
+    const url = new URL(`${GOOGLE_CONFIG.driveApiBase}${path}`);
+    url.searchParams.set("supportsAllDrives", "true");
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    }
+    const response = await fetch(url.toString(), {
       method: "PATCH",
       headers,
       body: JSON.stringify(body),
@@ -120,7 +135,9 @@ export async function drivePatch<T>(path: string, body: unknown): Promise<T> {
 export async function driveDelete(path: string): Promise<void> {
   return withRetry(async () => {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${GOOGLE_CONFIG.driveApiBase}${path}`, {
+    const url = new URL(`${GOOGLE_CONFIG.driveApiBase}${path}`);
+    url.searchParams.set("supportsAllDrives", "true");
+    const response = await fetch(url.toString(), {
       method: "DELETE",
       headers,
     });

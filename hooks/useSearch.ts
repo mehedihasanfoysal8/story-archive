@@ -30,6 +30,7 @@ export interface SearchFilters {
   publisher?: string;
   ageGroup?: string;
   atu?: string;
+  folderName?: string;
 }
 
 export function useSearch(stories: StoryWithMeta[]) {
@@ -70,6 +71,9 @@ export function useSearch(stories: StoryWithMeta[]) {
         s.atu_tale_type?.toLowerCase().includes(filters.atu!.toLowerCase())
       );
     }
+    if (filters.folderName) {
+      filtered = filtered.filter((s) => s.folderName === filters.folderName);
+    }
 
     // Apply text search
     if (!query.trim()) return filtered;
@@ -85,6 +89,7 @@ export function useSearch(stories: StoryWithMeta[]) {
     writers: [...new Set(stories.map((s) => s.bangla_writer_name).filter(Boolean))].sort(),
     publishers: [...new Set(stories.map((s) => s.bangla_publisher).filter(Boolean))].sort(),
     ageGroups: [...new Set(stories.map((s) => s.target_age_group).filter(Boolean))].sort(),
+    folders: [...new Set(stories.map((s) => s.folderName).filter((f): f is string => !!f))].sort(),
   }), [stories]);
 
   const clearFilters = useCallback(() => {

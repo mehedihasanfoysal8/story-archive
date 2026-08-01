@@ -18,7 +18,7 @@ export function useStoryImages(storyFolderId: string | null, storyId?: string) {
   });
 }
 
-export function useUploadImages(storyFolderId: string) {
+export function useUploadImages(storyFolderId: string, storyId?: string) {
   const qc = useQueryClient();
   const [progress, setProgress] = useState<DriveUploadProgress[]>([]);
 
@@ -27,6 +27,7 @@ export function useUploadImages(storyFolderId: string) {
       uploadImages({
         files,
         storyFolderId,
+        storyId,
         onProgress: setProgress,
       }),
     onSuccess: () => {
@@ -43,7 +44,7 @@ export function useUploadImages(storyFolderId: string) {
 export function useDeleteImage(storyFolderId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (fileId: string) => deleteImage(fileId),
+    mutationFn: (fileId: string) => deleteImage(fileId, storyFolderId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [IMAGES_QUERY_KEY, storyFolderId] });
       toast.success("Image deleted");

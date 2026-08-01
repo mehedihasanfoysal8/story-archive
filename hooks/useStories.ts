@@ -68,13 +68,14 @@ export function useCreateStory() {
 // ---------------------------------------------------------------------------
 export interface UpdateStoryVars {
   storiesFileId: string;
+  folderId?: string | null;
   story: Story;
 }
 
 export function useUpdateStory() {
   return useMutation({
-    mutationFn: ({ storiesFileId, story }: UpdateStoryVars) =>
-      updateStory(storiesFileId, story),
+    mutationFn: ({ storiesFileId, folderId, story }: UpdateStoryVars) =>
+      updateStory(storiesFileId, story, folderId),
     onError: (err: Error) => toast.error(`Save failed: ${err.message}`),
   });
 }

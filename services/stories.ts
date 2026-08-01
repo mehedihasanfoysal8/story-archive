@@ -101,6 +101,11 @@ export interface AddStoryOptions {
 export async function addStoryToFolder(options: AddStoryOptions): Promise<string> {
   const { folderId, story } = options;
 
+  // Sync images
+  const images = await getStoryImages(folderId, story.story_id);
+  story.image_ids = images.map(img => img.name);
+  story.num_images = images.length;
+
   // Find existing stories.json in the folder
   const existing = await findFileByName(APP_CONFIG.storyFileName, folderId);
 
@@ -138,7 +143,14 @@ export async function readStory(storiesFileId: string, storyId: string): Promise
 /**
  * Updates a single story in its stories.json file.
  */
-export async function updateStory(storiesFileId: string, story: Story): Promise<void> {
+export async function updateStory(storiesFileId: string, story: Story, folderId?: string | null): Promise<void> {
+  // Sync images if folderId is provided
+  if (folderId) {
+    const images = await getStoryImages(folderId, story.story_id);
+    story.image_ids = images.map(img => img.name);
+    story.num_images = images.length;
+  }
+
   const stories = await readStoriesArray(storiesFileId);
   let idx = stories.findIndex((s) => s.story_id === story.story_id);
 
@@ -153,6 +165,35 @@ export async function updateStory(storiesFileId: string, story: Story): Promise<
 
   stories[idx] = story;
   await writeStoriesArray(storiesFileId, stories);
+}
+
+/**
+ * Syncs image_ids and num_images for all stories in a folder.
+ * Used after image upload or deletion.
+ */
+export async function syncFolderImages(folderId: string): Promise<void> {
+  const existing = await findFileByName(APP_CONFIG.storyFileName, folderId);
+  if (!existing) return;
+
+  const stories = await readStoriesArray(existing.id);
+  let changed = false;
+
+  for (let i = 0; i < stories.length; i++) {
+    const story = stories[i];
+    const images = await getStoryImages(folderId, story.story_id);
+    const newIds = images.map(img => img.name);
+    
+    // Check if changed
+    if (story.num_images !== images.length || JSON.stringify(story.image_ids) !== JSON.stringify(newIds)) {
+      story.image_ids = newIds;
+      story.num_images = images.length;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await writeStoriesArray(existing.id, stories);
+  }
 }
 
 /**

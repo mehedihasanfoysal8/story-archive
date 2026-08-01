@@ -76,7 +76,7 @@ export function StoryEditor({ encodedId }: StoryEditorProps) {
 
   // Save mutation
   const saveMutation = useMutation({
-    mutationFn: (updated: Story) => updateStory(storiesFileId, updated),
+    mutationFn: (updated: Story) => updateStory(storiesFileId, updated, folderId),
     onSuccess: () => {
       setIsDirty(false);
       toast.success("Story saved to Google Drive!");

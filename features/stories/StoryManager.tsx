@@ -92,7 +92,7 @@ export function StoryManager() {
   };
 
   return (
-    <PageLayout title="Story Manager">
+    <PageLayout title={`Story Manager (Total: ${totalCount})`}>
       <div className="p-6 space-y-6">
         {/* Actions bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -131,8 +131,8 @@ export function StoryManager() {
         </div>
 
         {/* Filter controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-muted/30 p-4 rounded-2xl border">
-          <div className="sm:col-span-2 relative">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 bg-muted/30 p-4 rounded-2xl border">
+          <div className="sm:col-span-3 lg:col-span-2 relative">
             <Search className="w-4 h-4 absolute left-3.5 top-3 text-muted-foreground" />
             <Input
               placeholder="Search by title, writer, country, theme, ATU..."
@@ -155,6 +155,25 @@ export function StoryManager() {
                 {filterOptions.countries.map((c) => (
                   <SelectItem key={c} value={c}>
                     {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Select
+              value={filters.folderName || "ALL"}
+              onValueChange={(val) => setFilters((f) => ({ ...f, folderName: val === "ALL" ? undefined : val }))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="All Folders" />
+              </SelectTrigger>
+              <SelectContent className="max-h-64">
+                <SelectItem value="ALL">All Folders</SelectItem>
+                {filterOptions.folders.map((folder) => (
+                  <SelectItem key={folder} value={folder}>
+                    {folder}
                   </SelectItem>
                 ))}
               </SelectContent>
