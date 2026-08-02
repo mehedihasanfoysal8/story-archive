@@ -90,13 +90,9 @@ export async function searchStoryFiles(
       for (const chunk of chunks) {
         const parentClauses = chunk.map(id => `'${id}' in parents`).join(" or ");
         const q = `mimeType = 'application/vnd.google-apps.folder' and trashed = false and (${parentClauses})`;
-        try {
-          const res = await driveGet<DriveFilesListResponse>("/files", { q, fields: "files(id)", pageSize: "1000" });
-          if (res.files) {
-            nextLevelFolderIds.push(...res.files.map(f => f.id));
-          }
-        } catch (err) {
-          console.warn("Failed to fetch folder chunk", err);
+        const res = await driveGet<DriveFilesListResponse>("/files", { q, fields: "files(id)", pageSize: "1000" });
+        if (res.files) {
+          nextLevelFolderIds.push(...res.files.map(f => f.id));
         }
       }
       
@@ -113,17 +109,13 @@ export async function searchStoryFiles(
     for (const chunk of jsonChunks) {
       const parentClauses = chunk.map(id => `'${id}' in parents`).join(" or ");
       const q = `name = 'stories.json' and trashed = false and (${parentClauses})`;
-      try {
-        const res = await driveGet<DriveFilesListResponse>("/files", {
-          q,
-          fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
-          pageSize: "1000"
-        });
-        if (res.files) {
-          files.push(...res.files);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch stories.json chunk", err);
+      const res = await driveGet<DriveFilesListResponse>("/files", {
+        q,
+        fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
+        pageSize: "1000"
+      });
+      if (res.files) {
+        files.push(...res.files);
       }
     }
   }
