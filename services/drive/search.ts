@@ -41,23 +41,46 @@ export async function searchDriveFiles(
 }
 
 /**
+ * Lists all subfolder IDs under a given parent (1 level deep).
+ */
+async function listSubfolderIds(parentId: string): Promise<string[]> {
+  const result = await driveGet<DriveFilesListResponse>("/files", {
+    q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id)",
+    pageSize: "200",
+  });
+  return result.files.map((f) => f.id);
+}
+
+/**
  * Searches for JSON files (story.json) recursively under a root folder
  */
 export async function searchStoryFiles(
   rootFolderId: string,
   query?: string
 ): Promise<DriveFile[]> {
+  // Step 1: Get all direct child folder IDs
+  const childFolderIds = await listSubfolderIds(rootFolderId);
+
+  // The search scope includes rootFolderId itself + all child folders
+  const allParentIds = [rootFolderId, ...childFolderIds];
+
+  // Step 2: Build query to match stories.json in any of those folders
+  const parentConditions = allParentIds
+    .map((id) => `'${id}' in parents`)
+    .join(" or ");
+
   const conditions = [
     "trashed = false",
     "mimeType = 'application/json'",
     `name = 'stories.json'`,
+    `(${parentConditions})`,
   ];
 
   if (query) {
     conditions.push(`fullText contains '${query.replace(/'/g, "\\'")}'`);
   }
 
-  // Use a broad search — we filter by story.json name
   const result = await driveGet<DriveFilesListResponse>("/files", {
     q: conditions.join(" and "),
     fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
