@@ -25,7 +25,7 @@ export function StoryManager() {
   const router = useRouter();
 
   // Queries
-  const { data: stories = [], isLoading, refetch } = useStories(rootFolderId);
+  const { data: stories = [], isLoading, isError, error, refetch } = useStories(rootFolderId);
   const deleteStoryMutation = useDeleteStory();
   const duplicateStoryMutation = useDuplicateStory();
   const createStoryMutation = useCreateStory();
@@ -200,6 +200,40 @@ export function StoryManager() {
           </div>
         </div>
 
+        {/* Error State */}
+        {isError && (
+          <div className="flex flex-col items-center justify-center py-20 text-center glass rounded-2xl border border-destructive/20 bg-destructive/5">
+            <div className="w-16 h-16 rounded-2xl bg-destructive/20 flex items-center justify-center mb-4 text-destructive">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Error Loading Stories</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto whitespace-pre-wrap">
+              {error instanceof Error ? error.message : "Unknown error occurred"}
+            </p>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoading && !isError && totalCount === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-center glass rounded-2xl border border-dashed border-primary/20">
+            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <BookMarked className="w-8 h-8 text-primary opacity-50" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No Stories Found</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
+              Get started by creating your first story. Your stories will be saved
+              as JSON directly in your connected Google Drive folder.
+            </p>
+            <Button
+              onClick={() => router.push("/stories/new")}
+              className="gap-2 rounded-xl"
+            >
+              <Plus className="w-4 h-4" />
+              Create First Story
+            </Button>
+          </div>
+        )}
+
         {/* Stories Listing */}
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -207,7 +241,7 @@ export function StoryManager() {
               <div key={i} className="h-60 rounded-2xl bg-muted animate-pulse border" />
             ))}
           </div>
-        ) : results.length === 0 ? (
+        ) : results.length === 0 && totalCount > 0 ? (
           <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-2xl text-center min-h-[300px]">
             <BookOpen className="w-12 h-12 text-muted-foreground/60 mb-3" />
             <p className="font-semibold text-base">No stories match filters</p>
