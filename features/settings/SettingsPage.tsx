@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTheme } from "next-themes";
-import { HardDrive, Monitor, Sun, Moon, Keyboard, ShieldAlert, LogOut, RefreshCw, CheckCircle2 } from "lucide-react";
+import { HardDrive, Monitor, Sun, Moon, Keyboard, ShieldAlert, LogOut, RefreshCw, CheckCircle2, KeyRound } from "lucide-react";
 import { KEYBOARD_SHORTCUTS } from "@/config/app";
 import { useState } from "react";
 import toast from "react-hot-toast";
-
+import { clientIdStorage } from "@/lib/auth/storage";
 import { extractFolderIdFromUrl } from "@/utils/helpers";
 
 export function SettingsPage() {
@@ -19,6 +19,8 @@ export function SettingsPage() {
 
   const [folderIdInput, setFolderIdInput] = useState(rootFolderId || "");
   const [updatingFolder, setUpdatingFolder] = useState(false);
+  const [clientId, setClientId] = useState(clientIdStorage.getClientId() || "");
+  const [savingClientId, setSavingClientId] = useState(false);
 
   const handleUpdateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +42,18 @@ export function SettingsPage() {
     } finally {
       setUpdatingFolder(false);
     }
+  };
+
+  const handleSaveClientId = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId.trim()) {
+      toast.error("Please enter a valid Client ID");
+      return;
+    }
+    setSavingClientId(true);
+    clientIdStorage.setClientId(clientId.trim());
+    toast.success("Google Client ID saved! Please sign in again.");
+    setSavingClientId(false);
   };
 
   return (
@@ -71,6 +85,45 @@ export function SettingsPage() {
           <div className="text-[11px] text-muted-foreground flex items-center gap-1">
             <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
             <span>Changing the root folder ID will redirect you to reload Drive statistics.</span>
+          </div>
+        </div>
+
+        {/* Google OAuth Client ID */}
+        <div className="border rounded-2xl bg-card p-6 shadow-sm space-y-4">
+          <h3 className="font-bold text-base flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-primary" />
+            Google OAuth Client ID
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Required for Google Sign-In. Get this from{" "}
+            <a
+              href="https://console.cloud.google.com/apis/credentials"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              Google Cloud Console
+            </a>{" "}
+            → Create Credentials → OAuth 2.0 Client ID (Web application).
+          </p>
+          <form onSubmit={handleSaveClientId} className="space-y-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <Input
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder="Paste your Google OAuth Client ID here"
+                  type="text"
+                />
+              </div>
+              <Button type="submit" disabled={savingClientId}>
+                {savingClientId ? "Saving..." : "Save Client ID"}
+              </Button>
+            </div>
+          </form>
+          <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+            <span>Add your deployed URL to Authorized JavaScript origins &amp; redirect URIs in Google Cloud Console.</span>
           </div>
         </div>
 
