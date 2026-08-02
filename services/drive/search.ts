@@ -64,6 +64,7 @@ export async function searchStoryFiles(
     fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
     orderBy: "modifiedTime desc",
     pageSize: "1000",
+    corpora: "allDrives",
   });
 
   let files = result.files || [];
@@ -90,7 +91,12 @@ export async function searchStoryFiles(
       for (const chunk of chunks) {
         const parentClauses = chunk.map(id => `'${id}' in parents`).join(" or ");
         const q = `mimeType = 'application/vnd.google-apps.folder' and trashed = false and (${parentClauses})`;
-        const res = await driveGet<DriveFilesListResponse>("/files", { q, fields: "files(id)", pageSize: "1000" });
+        const res = await driveGet<DriveFilesListResponse>("/files", { 
+          q, 
+          fields: "files(id)", 
+          pageSize: "1000",
+          corpora: "allDrives" 
+        });
         if (res.files) {
           nextLevelFolderIds.push(...res.files.map(f => f.id));
         }
@@ -112,7 +118,8 @@ export async function searchStoryFiles(
       const res = await driveGet<DriveFilesListResponse>("/files", {
         q,
         fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
-        pageSize: "1000"
+        pageSize: "1000",
+        corpora: "allDrives"
       });
       if (res.files) {
         files.push(...res.files);
