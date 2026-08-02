@@ -53,42 +53,58 @@ async function listSubfolderIds(parentId: string): Promise<string[]> {
 }
 
 /**
- * Searches for JSON files (story.json) recursively under a root folder
+ * Searches for stories.json files recursively (2 levels deep) under a root folder.
+ * Structure: root → book_folder → story_folder → stories.json
  */
 export async function searchStoryFiles(
   rootFolderId: string,
   query?: string
 ): Promise<DriveFile[]> {
-  // Step 1: Get all direct child folder IDs
-  const childFolderIds = await listSubfolderIds(rootFolderId);
+  // Level 1: direct children of root
+  const level1Ids = await listSubfolderIds(rootFolderId);
 
-  // The search scope includes rootFolderId itself + all child folders
-  const allParentIds = [rootFolderId, ...childFolderIds];
+  // Level 2: children of level1 folders (book folders → story folders)
+  const level2Ids = (
+    await Promise.all(level1Ids.map((id) => listSubfolderIds(id).catch(() => [])))
+  ).flat();
 
-  // Step 2: Build query to match stories.json in any of those folders
-  const parentConditions = allParentIds
-    .map((id) => `'${id}' in parents`)
-    .join(" or ");
+  // All parent IDs to search within (root + level1 + level2)
+  const allParentIds = [rootFolderId, ...level1Ids, ...level2Ids];
 
-  const conditions = [
+  if (allParentIds.length === 0) return [];
+
+  // Drive queries have a URL length limit — batch in chunks of 50
+  const CHUNK = 50;
+  const chunks: string[][] = [];
+  for (let i = 0; i < allParentIds.length; i += CHUNK) {
+    chunks.push(allParentIds.slice(i, i + CHUNK));
+  }
+
+  const baseConditions = [
     "trashed = false",
     "mimeType = 'application/json'",
     `name = 'stories.json'`,
-    `(${parentConditions})`,
   ];
-
   if (query) {
-    conditions.push(`fullText contains '${query.replace(/'/g, "\\'")}'`);
+    baseConditions.push(`fullText contains '${query.replace(/'/g, "\\'")}'`);
   }
 
-  const result = await driveGet<DriveFilesListResponse>("/files", {
-    q: conditions.join(" and "),
-    fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
-    orderBy: "modifiedTime desc",
-    pageSize: "1000",
-  });
+  const allFiles: DriveFile[] = [];
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const parentConditions = chunk.map((id) => `'${id}' in parents`).join(" or ");
+      const conditions = [...baseConditions, `(${parentConditions})`];
+      const result = await driveGet<DriveFilesListResponse>("/files", {
+        q: conditions.join(" and "),
+        fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
+        orderBy: "modifiedTime desc",
+        pageSize: "1000",
+      });
+      allFiles.push(...result.files);
+    })
+  );
 
-  return result.files;
+  return allFiles;
 }
 
 /**

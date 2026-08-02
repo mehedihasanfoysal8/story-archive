@@ -44,7 +44,8 @@ export async function downloadFileAsText(fileId: string): Promise<string> {
   const token = (await import("@/lib/auth/storage")).tokenStorage.getAccessToken();
   if (!token) throw new Error("Not authenticated");
 
-  const response = await fetch(
+  // Try with Authorization header first (works for most cases)
+  let response = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&_t=${Date.now()}`,
     { 
       headers: { Authorization: `Bearer ${token}` },
@@ -52,8 +53,16 @@ export async function downloadFileAsText(fileId: string): Promise<string> {
     }
   );
 
+  // Fallback: use access_token as query param (needed in some deployment environments)
+  if (!response.ok && (response.status === 401 || response.status === 403)) {
+    response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${encodeURIComponent(token)}&_t=${Date.now()}`,
+      { cache: "no-store" }
+    );
+  }
+
   if (!response.ok) {
-    throw new Error(`Download failed: ${response.statusText}`);
+    throw new Error(`Download failed (${response.status}): ${response.statusText}`);
   }
 
   return response.text();
