@@ -29,6 +29,12 @@ export function LoginPage() {
     e.preventDefault();
     saveClientIdIfNeeded();
 
+    if (!clientIdStorage.getClientId()) {
+      toast.error("Google Client ID is required. Please paste your Client ID.");
+      setShowAdvanced(true);
+      return;
+    }
+
     const folderId = extractFolderIdFromUrl(driveUrl);
     if (!folderId) {
       toast.error("Please enter a valid Google Drive folder link or ID");
@@ -38,20 +44,12 @@ export function LoginPage() {
     setConnecting(true);
     setRootFolderId(folderId);
 
-    // If we have a Client ID, trigger Google login
-    if (clientIdStorage.getClientId()) {
-      try {
-        await login();
-      } catch (err) {
-        toast.error("Google sign-in failed: " + (err as Error).message);
-        setConnecting(false);
-      }
-    } else {
-      // No Client ID — just connect folder and go to dashboard
-      toast.success("Google Drive folder connected!");
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 500);
+    // Trigger Google login
+    try {
+      await login();
+    } catch (err) {
+      toast.error("Google sign-in failed: " + (err as Error).message);
+      setConnecting(false);
     }
   };
 
@@ -142,7 +140,7 @@ export function LoginPage() {
             ) : (
               <>
                 <HardDrive className="w-4 h-4 mr-1 flex-shrink-0" />
-                {clientIdStorage.getClientId() ? "Connect & Sign in with Google" : "Connect Drive Folder"}
+                Connect & Sign in with Google
                 <ArrowRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
               </>
             )}

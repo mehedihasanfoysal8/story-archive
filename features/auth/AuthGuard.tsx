@@ -10,7 +10,7 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { isLoading, rootFolderId } = useAuth();
+  const { isLoading, rootFolderId, isAuthenticated } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -30,7 +30,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  if (!rootFolderId) {
+  // Must have both a folder and an active Google session token to use the Drive API
+  if (!rootFolderId || !isAuthenticated) {
     return <LoginPage />;
   }
 
