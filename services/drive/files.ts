@@ -45,7 +45,7 @@ export async function downloadFileAsText(fileId: string): Promise<string> {
   if (!token) throw new Error("Not authenticated");
 
   const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&_t=${Date.now()}`,
     { 
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store"

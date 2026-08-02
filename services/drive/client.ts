@@ -84,6 +84,9 @@ export async function driveGet<T>(path: string, params?: Record<string, string>)
     if (params) {
       Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     }
+    // Add cache buster
+    url.searchParams.set("_t", Date.now().toString());
+
     const response = await fetch(url.toString(), { 
       headers,
       cache: "no-store"
