@@ -27,7 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { BreadcrumbItem } from "@/types/drive";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
-import { ROUTES } from "@/config/app";
+import { APP_CONFIG, ROUTES } from "@/config/app";
 import type { DriveFile } from "@/types/drive";
 
 export function FolderManager() {
