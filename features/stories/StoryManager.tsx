@@ -13,7 +13,7 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Grid, List, Search, Plus, BookOpen, X, RefreshCw } from "lucide-react";
+import { Grid, List, Search, Plus, BookOpen, X, RefreshCw, BookMarked } from "lucide-react";
 import type { StoryWithMeta } from "@/types/story";
 import { ROUTES } from "@/config/app";
 import { useRouter } from "next/navigation";
