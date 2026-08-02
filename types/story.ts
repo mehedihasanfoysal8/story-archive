@@ -30,6 +30,11 @@ export interface StoryWithMeta extends Story {
   coverImageId?: string;
   folderPath: string[];
   lastModified: string;
+  lastModifyingUser?: {
+    displayName?: string;
+    emailAddress?: string;
+    photoLink?: string;
+  };
   country?: string;
   collection?: string;
 }

@@ -43,11 +43,11 @@ export function StoryTable({
     <div className="border rounded-2xl bg-card overflow-hidden shadow-sm flex flex-col h-[600px]">
       {/* Table Header */}
       <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-muted/40 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wider select-none">
-        <div className="col-span-4">Title</div>
+        <div className="col-span-3">Title</div>
         <div className="col-span-2">Writer</div>
         <div className="col-span-2">Folder</div>
-        <div className="col-span-2">Country</div>
-        <div className="col-span-1">Modified</div>
+        <div className="col-span-2">Modified By</div>
+        <div className="col-span-2">Modified</div>
         <div className="col-span-1 text-right">Actions</div>
       </div>
 
@@ -76,25 +76,31 @@ export function StoryTable({
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <div className="col-span-4 flex items-center gap-2.5 truncate pr-2">
+                <div className="col-span-3 flex items-center gap-2.5 truncate pr-2">
                   <BookOpen className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="font-semibold text-sm truncate text-foreground">
+                  <span className="font-semibold text-sm truncate text-foreground" title={story.bangla_story_title || "Untitled Story"}>
                     {story.bangla_story_title || "Untitled Story"}
                   </span>
                 </div>
                 <div className="col-span-2 text-sm text-muted-foreground truncate pr-2 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="truncate">{story.bangla_writer_name || "—"}</span>
+                  <span className="truncate" title={story.bangla_writer_name}>{story.bangla_writer_name || "—"}</span>
                 </div>
                 <div className="col-span-2 text-sm text-muted-foreground truncate pr-2 flex items-center gap-1.5">
                   <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="truncate font-mono text-xs">{story.folderName || "—"}</span>
+                  <span className="truncate font-mono text-xs" title={story.folderName}>{story.folderName || "—"}</span>
                 </div>
                 <div className="col-span-2 text-sm text-muted-foreground truncate pr-2 flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="truncate">{story.origin_country || "—"}</span>
+                  {story.lastModifyingUser?.photoLink ? (
+                    <img src={story.lastModifyingUser.photoLink} alt="" className="w-5 h-5 rounded-full flex-shrink-0" />
+                  ) : (
+                    <User className="w-3.5 h-3.5 flex-shrink-0" />
+                  )}
+                  <span className="truncate" title={story.lastModifyingUser?.displayName}>
+                    {story.lastModifyingUser?.displayName || "—"}
+                  </span>
                 </div>
-                <div className="col-span-1 text-sm text-muted-foreground truncate flex items-center gap-1.5">
+                <div className="col-span-2 text-sm text-muted-foreground truncate pr-2 flex items-center gap-1.5">
                   <span>{formatDate(story.lastModified)}</span>
                 </div>
                 <div className="col-span-1 flex items-center justify-end gap-1">

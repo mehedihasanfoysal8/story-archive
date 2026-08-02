@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useStories, useDeleteStory, useDuplicateStory, useCreateStory } from "@/hooks/useStories";
 import { useSearch } from "@/hooks/useSearch";
@@ -50,6 +50,19 @@ export function StoryManager() {
     totalCount,
     resultCount,
   } = useSearch(stories);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, filters]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedResults = results.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(resultCount / itemsPerPage);
 
   const handleDuplicate = async (story: StoryWithMeta) => {
     const newId = generateNumericStoryId();
@@ -256,7 +269,7 @@ export function StoryManager() {
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {results.map((story) => (
+            {paginatedResults.map((story) => (
               <StoryCard
                 key={story.story_id}
                 story={story}
@@ -274,7 +287,7 @@ export function StoryManager() {
           </div>
         ) : (
           <StoryTable
-            stories={results}
+            stories={paginatedResults}
             onDelete={(s) => {
               setDeleteTarget(s);
               setDeleteOpen(true);
@@ -286,6 +299,61 @@ export function StoryManager() {
             }}
           />
         )}
+
+        {/* Pagination Controls */}
+        {resultCount > 0 && !isLoading && !isError && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+            <div className="text-sm text-muted-foreground">
+              Showing {startIndex + 1} to {Math.min(endIndex, resultCount)} of {resultCount} stories
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground hidden sm:inline">Per page:</span>
+                <Select
+                  value={itemsPerPage.toString()}
+                  onValueChange={(val) => {
+                    setItemsPerPage(Number(val));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-20 rounded-xl h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl h-9 px-3"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <div className="text-sm font-medium w-16 text-center">
+                  {currentPage} / {totalPages || 1}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl h-9 px-3"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Preview Modal */}

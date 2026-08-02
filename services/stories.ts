@@ -262,6 +262,7 @@ export async function fetchStoriesWithMeta(rootFolderId: string): Promise<StoryW
         driveFolderId: folderId,
         folderName: folderNameMap[folderId] || folderId,
         lastModified: file.modifiedTime,
+        lastModifyingUser: file.lastModifyingUser,
         folderPath: [] as string[],
       } satisfies StoryWithMeta));
     })
