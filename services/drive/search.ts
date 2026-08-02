@@ -23,7 +23,6 @@ export async function searchDriveFiles(
   }
 
   if (options.query) {
-    // Drive full-text search
     conditions.push(`fullText contains '${options.query.replace(/'/g, "\\'")}'`);
   }
 
@@ -41,70 +40,95 @@ export async function searchDriveFiles(
 }
 
 /**
- * Lists all subfolder IDs under a given parent (1 level deep).
- */
-async function listSubfolderIds(parentId: string): Promise<string[]> {
-  const result = await driveGet<DriveFilesListResponse>("/files", {
-    q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-    fields: "files(id)",
-    pageSize: "200",
-  });
-  return result.files.map((f) => f.id);
-}
-
-/**
- * Searches for stories.json files recursively (2 levels deep) under a root folder.
- * Structure: root → book_folder → story_folder → stories.json
+ * Searches for stories.json files. 
+ * Tries a global search first. If none found (which happens with shared folders not in My Drive),
+ * it falls back to a BFS traversal up to depth 2 to find the files explicitly by parent IDs.
  */
 export async function searchStoryFiles(
   rootFolderId: string,
   query?: string
 ): Promise<DriveFile[]> {
-  // Level 1: direct children of root
-  const level1Ids = await listSubfolderIds(rootFolderId);
-
-  // Level 2: children of level1 folders (book folders → story folders)
-  const level2Ids = (
-    await Promise.all(level1Ids.map((id) => listSubfolderIds(id).catch(() => [])))
-  ).flat();
-
-  // All parent IDs to search within (root + level1 + level2)
-  const allParentIds = [rootFolderId, ...level1Ids, ...level2Ids];
-
-  if (allParentIds.length === 0) return [];
-
-  // Drive queries have a URL length limit — batch in chunks of 50
-  const CHUNK = 50;
-  const chunks: string[][] = [];
-  for (let i = 0; i < allParentIds.length; i += CHUNK) {
-    chunks.push(allParentIds.slice(i, i + CHUNK));
-  }
-
-  const baseConditions = [
+  const conditions = [
     "trashed = false",
     "mimeType = 'application/json'",
     `name = 'stories.json'`,
   ];
+
   if (query) {
-    baseConditions.push(`fullText contains '${query.replace(/'/g, "\\'")}'`);
+    conditions.push(`fullText contains '${query.replace(/'/g, "\\'")}'`);
   }
 
-  const allFiles: DriveFile[] = [];
-  await Promise.all(
-    chunks.map(async (chunk) => {
-      const parentConditions = chunk.map((id) => `'${id}' in parents`).join(" or ");
-      const conditions = [...baseConditions, `(${parentConditions})`];
-      const result = await driveGet<DriveFilesListResponse>("/files", {
-        q: conditions.join(" and "),
-        fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
-        orderBy: "modifiedTime desc",
-        pageSize: "1000",
-      });
-      allFiles.push(...result.files);
-    })
-  );
+  // 1. Try global search first (fastest, works for owned files)
+  const result = await driveGet<DriveFilesListResponse>("/files", {
+    q: conditions.join(" and "),
+    fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
+    orderBy: "modifiedTime desc",
+    pageSize: "1000",
+  });
 
-  return allFiles;
+  let files = result.files || [];
+
+  // 2. If global search returns empty, fallback to tree traversal (slower, but works for shared links)
+  // We only do this if there is no fullText query (since we can't easily filter fullText in traversal efficiently if we just want to find if ANY exist)
+  // Actually, we can just fetch all stories.json and the frontend will filter them.
+  if (files.length === 0 && rootFolderId && !query) {
+    console.log("Global search returned 0 files. Falling back to tree traversal for shared folders...");
+    
+    // BFS to find all subfolders up to depth 2 (root -> books -> stories)
+    let currentLevelFolderIds = [rootFolderId];
+    const allFolderIds = [rootFolderId];
+    
+    for (let depth = 0; depth < 2; depth++) {
+      if (currentLevelFolderIds.length === 0) break;
+      
+      const chunks = [];
+      for (let i = 0; i < currentLevelFolderIds.length; i += 20) {
+        chunks.push(currentLevelFolderIds.slice(i, i + 20));
+      }
+      
+      const nextLevelFolderIds: string[] = [];
+      for (const chunk of chunks) {
+        const parentClauses = chunk.map(id => `'${id}' in parents`).join(" or ");
+        const q = `mimeType = 'application/vnd.google-apps.folder' and trashed = false and (${parentClauses})`;
+        try {
+          const res = await driveGet<DriveFilesListResponse>("/files", { q, fields: "files(id)", pageSize: "1000" });
+          if (res.files) {
+            nextLevelFolderIds.push(...res.files.map(f => f.id));
+          }
+        } catch (err) {
+          console.warn("Failed to fetch folder chunk", err);
+        }
+      }
+      
+      allFolderIds.push(...nextLevelFolderIds);
+      currentLevelFolderIds = nextLevelFolderIds;
+    }
+    
+    // Now search for stories.json inside ALL these folders
+    const jsonChunks = [];
+    for (let i = 0; i < allFolderIds.length; i += 20) {
+      jsonChunks.push(allFolderIds.slice(i, i + 20));
+    }
+    
+    for (const chunk of jsonChunks) {
+      const parentClauses = chunk.map(id => `'${id}' in parents`).join(" or ");
+      const q = `name = 'stories.json' and trashed = false and (${parentClauses})`;
+      try {
+        const res = await driveGet<DriveFilesListResponse>("/files", {
+          q,
+          fields: `nextPageToken,files(${DRIVE_FIELDS.file},parents)`,
+          pageSize: "1000"
+        });
+        if (res.files) {
+          files.push(...res.files);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch stories.json chunk", err);
+      }
+    }
+  }
+
+  return files;
 }
 
 /**

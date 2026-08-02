@@ -1,7 +1,15 @@
 {
-  "/stories/page": "app/stories/page.js",
-  "/folders/page": "app/folders/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/auth/callback/page": "app/auth/callback/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/drive-overview/page": "app/drive-overview/page.js",
+  "/images/page": "app/images/page.js",
   "/page": "app/page.js",
-  "/dashboard/page": "app/dashboard/page.js"
+  "/folders/page": "app/folders/page.js",
+  "/search/page": "app/search/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/stories/[id]/page": "app/stories/[id]/page.js",
+  "/stories/new/page": "app/stories/new/page.js",
+  "/stories/page": "app/stories/page.js"
 }

@@ -13,25 +13,21 @@ import { clientIdStorage } from "@/lib/auth/storage";
 import toast from "react-hot-toast";
 
 export function LoginPage() {
-  const { setRootFolderId, login, isAuthenticated, rootFolderId } = useAuth();
+  const { setRootFolderId, login } = useAuth();
   const [driveUrl, setDriveUrl] = useState<string>(APP_CONFIG.defaultDriveLink);
   const [connecting, setConnecting] = useState(false);
   const [clientId, setClientId] = useState<string>(clientIdStorage.getClientId() || "");
-  const [showClientId, setShowClientId] = useState(!clientIdStorage.getClientId());
+  const [showAdvanced, setShowAdvanced] = useState(!clientIdStorage.getClientId());
 
-  const handleConnect = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Save client ID first if provided
+  const saveClientIdIfNeeded = () => {
     if (clientId.trim()) {
       clientIdStorage.setClientId(clientId.trim());
     }
+  };
 
-    if (!clientIdStorage.getClientId()) {
-      toast.error("Google Client ID is required. Please enter your OAuth Client ID.");
-      setShowClientId(true);
-      return;
-    }
+  const handleConnectWithLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    saveClientIdIfNeeded();
 
     const folderId = extractFolderIdFromUrl(driveUrl);
     if (!folderId) {
@@ -42,26 +38,20 @@ export function LoginPage() {
     setConnecting(true);
     setRootFolderId(folderId);
 
-    try {
-      await login();
-    } catch (err) {
-      toast.error("Google sign-in failed: " + (err as Error).message);
-      setConnecting(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    if (!clientIdStorage.getClientId()) {
-      toast.error("Google Client ID is required.");
-      setShowClientId(true);
-      return;
-    }
-    try {
-      setConnecting(true);
-      await login();
-    } catch (err) {
-      toast.error("Google sign-in failed: " + (err as Error).message);
-      setConnecting(false);
+    // If we have a Client ID, trigger Google login
+    if (clientIdStorage.getClientId()) {
+      try {
+        await login();
+      } catch (err) {
+        toast.error("Google sign-in failed: " + (err as Error).message);
+        setConnecting(false);
+      }
+    } else {
+      // No Client ID — just connect folder and go to dashboard
+      toast.success("Google Drive folder connected!");
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 500);
     }
   };
 
@@ -76,133 +66,88 @@ export function LoginPage() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="w-full max-w-[480px] p-8 rounded-2xl glass border border-border shadow-2xl relative z-10 text-center space-y-5"
       >
-        {/* App Logo */}
         <div className="mx-auto w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center shadow-lg shadow-primary/20">
           <BookMarked className="w-7 h-7 text-white" />
         </div>
 
-        {/* Header */}
         <div>
           <h1 className="text-2xl font-bold tracking-tight mb-1.5">Story Archive CMS</h1>
           <p className="text-sm text-muted-foreground">
-            {rootFolderId && !isAuthenticated
-              ? "Sign in with Google to access your stories."
-              : "Connect your Google Drive folder and sign in."}
+            Connect your Google Drive folder to manage your stories.
           </p>
         </div>
 
-        {/* Google Client ID section — always visible if not set */}
-        <div className="text-left border border-border rounded-xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowClientId((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-foreground bg-muted/50 hover:bg-muted transition-colors"
-          >
-            <span className="flex items-center gap-1.5">
-              <KeyRound className="w-3.5 h-3.5 text-primary" />
-              Google OAuth Client ID
-              {clientIdStorage.getClientId() ? (
-                <span className="ml-1 text-emerald-500 font-normal">✓ set</span>
-              ) : (
-                <span className="ml-1 text-destructive font-normal">* required</span>
-              )}
-            </span>
-            {showClientId ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
+        <form onSubmit={handleConnectWithLogin} className="space-y-3 text-left">
+          <div className="space-y-2">
+            <Label htmlFor="drive-link-input" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <FolderSymlink className="w-4 h-4 text-primary" />
+              Google Drive Folder Link
+            </Label>
+            <Input
+              id="drive-link-input"
+              type="text"
+              placeholder="https://drive.google.com/drive/folders/..."
+              value={driveUrl}
+              onChange={(e) => setDriveUrl(e.target.value)}
+              className="h-11 rounded-xl bg-background/80 border-input text-xs font-mono"
+              required
+            />
+          </div>
 
-          {showClientId && (
-            <div className="p-4 space-y-2 border-t border-border bg-background/60">
-              <Input
-                id="client-id-input"
-                type="text"
-                placeholder="Paste your Google OAuth Client ID (ends with .apps.googleusercontent.com)"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                onBlur={() => {
-                  if (clientId.trim()) {
-                    clientIdStorage.setClientId(clientId.trim());
-                  }
-                }}
-                className="h-10 text-xs font-mono rounded-lg"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Get from{" "}
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline"
-                >
-                  Google Cloud Console
-                </a>{" "}
-                → Credentials → OAuth 2.0 Client ID (Web app). Add{" "}
-                <code className="bg-muted px-1 rounded text-[10px]">{typeof window !== "undefined" ? window.location.origin : ""}/auth/callback</code>{" "}
-                to Authorized redirect URIs.
-              </p>
-            </div>
-          )}
-        </div>
+          {/* Collapsible Client ID section */}
+          <div className="border border-border rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-foreground bg-muted/50 hover:bg-muted transition-colors"
+            >
+              <span className="flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-primary" />
+                Google OAuth Client ID
+                {clientIdStorage.getClientId() ? (
+                  <span className="ml-1 text-emerald-500 font-normal">✓ set</span>
+                ) : (
+                  <span className="ml-1 text-amber-500 font-normal">optional</span>
+                )}
+              </span>
+              {showAdvanced ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            {showAdvanced && (
+              <div className="p-3 space-y-2 border-t border-border bg-background/60">
+                <Input
+                  type="text"
+                  placeholder="Client ID (ends with .apps.googleusercontent.com)"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  onBlur={saveClientIdIfNeeded}
+                  className="h-9 text-xs font-mono rounded-lg"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Required for Google Sign-In. Get from{" "}
+                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google Cloud Console</a>.
+                </p>
+              </div>
+            )}
+          </div>
 
-        {/* Folder + Sign-In or just Sign-In */}
-        {rootFolderId && !isAuthenticated ? (
           <Button
-            onClick={handleGoogleLogin}
+            type="submit"
             disabled={connecting}
             size="lg"
             className="w-full h-11 rounded-xl font-semibold flex items-center justify-center gap-2 group shadow-md"
-            id="google-signin-btn"
+            id="google-connect-btn"
           >
             {connecting ? (
               <div className="w-5 h-5 border-2 border-background border-t-transparent rounded-full animate-spin" />
             ) : (
               <>
-                <LogIn className="w-4 h-4 mr-1 flex-shrink-0" />
-                Sign in with Google
+                <HardDrive className="w-4 h-4 mr-1 flex-shrink-0" />
+                {clientIdStorage.getClientId() ? "Connect & Sign in with Google" : "Connect Drive Folder"}
                 <ArrowRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
               </>
             )}
           </Button>
-        ) : (
-          <form onSubmit={handleConnect} className="space-y-3 text-left">
-            <div className="space-y-2">
-              <Label htmlFor="drive-link-input" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <FolderSymlink className="w-4 h-4 text-primary" />
-                Google Drive Folder Link
-              </Label>
-              <Input
-                id="drive-link-input"
-                type="text"
-                placeholder="https://drive.google.com/drive/folders/..."
-                value={driveUrl}
-                onChange={(e) => setDriveUrl(e.target.value)}
-                className="h-11 rounded-xl bg-background/80 border-input text-xs font-mono"
-                required
-              />
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                <span>Enter your Google Drive folder link then sign in</span>
-              </p>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={connecting}
-              size="lg"
-              className="w-full h-11 rounded-xl font-semibold flex items-center justify-center gap-2 group shadow-md"
-              id="google-connect-btn"
-            >
-              {connecting ? (
-                <div className="w-5 h-5 border-2 border-background border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <HardDrive className="w-4 h-4 mr-1 flex-shrink-0" />
-                  Connect & Sign in with Google
-                  <ArrowRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </Button>
-          </form>
-        )}
+        </form>
 
         <div className="pt-1 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
           <Sparkles className="w-3.5 h-3.5 text-primary" />

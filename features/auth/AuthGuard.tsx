@@ -10,7 +10,7 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { isLoading, isAuthenticated, rootFolderId } = useAuth();
+  const { isLoading, rootFolderId } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -30,8 +30,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  // Need both a folder AND a valid Google access token to use the app
-  if (!rootFolderId || !isAuthenticated) {
+  if (!rootFolderId) {
     return <LoginPage />;
   }
 
