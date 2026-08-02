@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { readStoriesArray, updateStory } from "@/services/stories";
 import { STORIES_QUERY_KEY } from "@/hooks/useStories";
 import { driveGet } from "@/services/drive/client";
@@ -28,6 +29,8 @@ export function StoryEditor({ encodedId }: StoryEditorProps) {
   const separatorIdx = encodedId.indexOf("__");
   const storiesFileId = separatorIdx !== -1 ? encodedId.slice(0, separatorIdx) : encodedId;
   const storyId = separatorIdx !== -1 ? encodedId.slice(separatorIdx + 2) : "";
+  const searchParams = useSearchParams();
+  const urlFolderId = searchParams.get("folderId");
 
   const [mode, setMode] = useState<"form" | "json">("form");
   const [localStory, setLocalStory] = useState<Story | null>(null);
@@ -57,9 +60,12 @@ export function StoryEditor({ encodedId }: StoryEditorProps) {
 
       if (!found) throw new Error(`Story "${storyId}" not found in file.`);
 
-      // Also get folderId so we can manage images
-      const fileMeta = await driveGet<{ parents: string[] }>(`/files/${storiesFileId}?fields=parents`);
-      const parentFolderId = fileMeta.parents?.[0] || null;
+      let parentFolderId = urlFolderId;
+      if (!parentFolderId) {
+        // Fallback if not provided in URL
+        const fileMeta = await driveGet<{ parents: string[] }>(`/files/${storiesFileId}?fields=parents`);
+        parentFolderId = fileMeta.parents?.[0] || null;
+      }
 
       return { story: found, folderId: parentFolderId };
     };
@@ -74,7 +80,7 @@ export function StoryEditor({ encodedId }: StoryEditorProps) {
         setLoadError(err.message || "Failed to load story.");
         setIsLoading(false);
       });
-  }, [storiesFileId, storyId]);
+  }, [storiesFileId, storyId, urlFolderId]);
 
   // Save mutation
   const saveMutation = useMutation({

@@ -110,7 +110,7 @@ export function StoryCard({
 
           <div className="flex items-center gap-2 pt-1">
             <Link
-              href={ROUTES.story(story.storiesFileId, story.story_id)}
+              href={ROUTES.story(story.storiesFileId, story.story_id, story.driveFolderId)}
               className="flex-1"
             >
               <Button size="sm" className="w-full rounded-xl" variant="outline">

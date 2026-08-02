@@ -39,8 +39,11 @@ export const ROUTES = {
   dashboard: "/dashboard",
   stories: "/stories",
   newStory: "/stories/new",
-  story: (storiesFileId: string, storyId?: string) => 
-    storyId ? `/stories/${storiesFileId}__${storyId}` : `/stories/${storiesFileId}`,
+  story: (storiesFileId: string, storyId?: string, folderId?: string) => {
+    let url = storyId ? `/stories/${storiesFileId}__${storyId}` : `/stories/${storiesFileId}`;
+    if (folderId) url += `?folderId=${folderId}`;
+    return url;
+  },
   storyPreview: (id: string) => `/stories/${id}/preview`,
   folders: "/folders",
   images: "/images",

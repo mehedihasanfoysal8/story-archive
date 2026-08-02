@@ -104,13 +104,13 @@ export function FolderManager() {
     if (item.mimeType === "application/vnd.google-apps.folder") {
       setCurrentId(item.id);
     } else {
-      if (item.name.endsWith(".json")) {
-        router.push(ROUTES.story(item.id));
-      } else {
-        const driveUrl =
-          item.webViewLink || `https://drive.google.com/open?id=${item.id}`;
-        window.open(driveUrl, "_blank", "noopener,noreferrer");
+      if (item.name === APP_CONFIG.storyFileName) {
+        router.push(ROUTES.story(item.id, undefined, item.parents?.[0]));
+        return;
       }
+      const driveUrl =
+        item.webViewLink || `https://drive.google.com/open?id=${item.id}`;
+      window.open(driveUrl, "_blank", "noopener,noreferrer");
     }
   };
 

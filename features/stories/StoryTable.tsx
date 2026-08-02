@@ -113,7 +113,7 @@ export function StoryTable({
                   >
                     <FileText className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
                   </Button>
-                  <Link href={ROUTES.story(story.storiesFileId, story.story_id)}>
+                  <Link href={ROUTES.story(story.storiesFileId, story.story_id, story.driveFolderId)}>
                     <Button
                       variant="ghost"
                       size="icon"
