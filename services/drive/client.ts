@@ -186,6 +186,7 @@ export async function driveMultipartUpload<T>(
     const url = new URL(`${GOOGLE_CONFIG.driveUploadBase}/files`);
     url.searchParams.set("uploadType", "multipart");
     url.searchParams.set("fields", DRIVE_FIELDS.file);
+    url.searchParams.set("supportsAllDrives", "true");
     if (params) {
       Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     }
@@ -217,6 +218,7 @@ export async function driveUpdateContent<T>(
     const url = new URL(`${GOOGLE_CONFIG.driveUploadBase}/files/${fileId}`);
     url.searchParams.set("uploadType", "media");
     url.searchParams.set("fields", DRIVE_FIELDS.file);
+    url.searchParams.set("supportsAllDrives", "true");
 
     const response = await fetch(url.toString(), {
       method: "PATCH",

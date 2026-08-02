@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { readStoriesArray, updateStory } from "@/services/stories";
+import { STORIES_QUERY_KEY } from "@/hooks/useStories";
 import { driveGet } from "@/services/drive/client";
 import { useGlobalShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { FormEditor } from "./FormEditor";
@@ -22,6 +23,7 @@ interface StoryEditorProps {
 }
 
 export function StoryEditor({ encodedId }: StoryEditorProps) {
+  const qc = useQueryClient();
   // Parse the encoded ID
   const separatorIdx = encodedId.indexOf("__");
   const storiesFileId = separatorIdx !== -1 ? encodedId.slice(0, separatorIdx) : encodedId;
@@ -78,6 +80,7 @@ export function StoryEditor({ encodedId }: StoryEditorProps) {
   const saveMutation = useMutation({
     mutationFn: (updated: Story) => updateStory(storiesFileId, updated, folderId),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [STORIES_QUERY_KEY] });
       setIsDirty(false);
       toast.success("Story saved to Google Drive!");
     },

@@ -155,14 +155,7 @@ export function CreateStoryPage() {
         target_age_group: data.target_age_group || "",
       };
 
-      // Add to stories.json array in the selected folder
-      const storiesFileId = await createStoryMutation.mutateAsync({
-        folderId: data.targetFolderId,
-        rootFolderId,
-        story: storyData,
-      });
-
-      // Upload image files to the same folder
+      // Upload image files FIRST so that when story is created, Drive API sees them
       if (namedFiles.length > 0) {
         for (const nf of namedFiles) {
           const ext = nf.file.name.split(".").pop()?.toLowerCase() || "jpg";
@@ -171,6 +164,13 @@ export function CreateStoryPage() {
         }
         toast.success(`${namedFiles.length} image(s) uploaded.`);
       }
+
+      // Add to stories.json array in the selected folder
+      const storiesFileId = await createStoryMutation.mutateAsync({
+        folderId: data.targetFolderId,
+        rootFolderId,
+        story: storyData,
+      });
 
       // Reset form, keep folder selection for convenience
       const savedFolderId = data.targetFolderId;
