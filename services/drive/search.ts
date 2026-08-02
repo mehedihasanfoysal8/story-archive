@@ -79,7 +79,7 @@ export async function searchStoryFiles(
     let currentLevelFolderIds = [rootFolderId];
     const allFolderIds = [rootFolderId];
     
-    for (let depth = 0; depth < 2; depth++) {
+    for (let depth = 0; depth < 3; depth++) {
       if (currentLevelFolderIds.length === 0) break;
       
       const chunks = [];
