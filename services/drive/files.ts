@@ -46,7 +46,10 @@ export async function downloadFileAsText(fileId: string): Promise<string> {
 
   const response = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { 
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store"
+    }
   );
 
   if (!response.ok) {

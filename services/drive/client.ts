@@ -84,7 +84,10 @@ export async function driveGet<T>(path: string, params?: Record<string, string>)
     if (params) {
       Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     }
-    const response = await fetch(url.toString(), { headers });
+    const response = await fetch(url.toString(), { 
+      headers,
+      cache: "no-store"
+    });
     return handleResponse<T>(response);
   });
 }
