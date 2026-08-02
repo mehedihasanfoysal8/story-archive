@@ -1,6 +1,5 @@
 {
   "/stories/page": "app/stories/page.js",
-  "/stories/[id]/page": "app/stories/[id]/page.js",
   "/folders/page": "app/folders/page.js",
   "/auth/callback/page": "app/auth/callback/page.js",
   "/page": "app/page.js",
