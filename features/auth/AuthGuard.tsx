@@ -10,7 +10,7 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { isLoading, rootFolderId } = useAuth();
+  const { isLoading, isAuthenticated, rootFolderId } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -30,8 +30,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  // If a Drive folder link / rootFolderId is connected, immediately allow entry into the workspace!
-  if (!rootFolderId) {
+  // Need both a folder AND a valid Google access token to use the app
+  if (!rootFolderId || !isAuthenticated) {
     return <LoginPage />;
   }
 
